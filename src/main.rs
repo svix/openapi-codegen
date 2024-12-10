@@ -4,6 +4,7 @@ use aide::openapi::{self, OpenApi};
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use fs_err as fs;
+use schemars::schema::SchemaObject;
 use tempfile::TempDir;
 
 #[derive(Parser)]
@@ -39,17 +40,28 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Named types referenced by the [`Api`].
+///
+/// Intermediate representation of (some) `components` from the spec.
+#[derive(Debug)]
+struct Types(BTreeMap<String, SchemaObject>);
+
+/// The API we generate a client for.
+///
+/// Intermediate representation of `paths` from the spec.
 #[derive(Debug)]
 struct Api {
     resources: BTreeMap<String, Resource>,
 }
 
+/// A named group of [`Operation`]s.
 #[derive(Debug, Default)]
 struct Resource {
     operations: Vec<Operation>,
     // TODO: subresources?
 }
 
+/// A named HTTP endpoint.
 #[derive(Debug)]
 struct Operation {
     /// The name to use for the operation in code.
