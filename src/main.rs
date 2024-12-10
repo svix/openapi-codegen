@@ -82,7 +82,7 @@ struct Operation {
     /// Query parameters.
     query_params: Vec<openapi::ParameterData>,
     /// Name of the request body type, if any.
-    request_body: Option<openapi::RequestBody>,
+    request_body: Option<String>,
 }
 
 impl Operation {
@@ -155,7 +155,28 @@ impl Operation {
         }
 
         let request_body = op.request_body.and_then(|b| match b {
-            ReferenceOr::Item(req_body) => Some(req_body),
+            ReferenceOr::Item(mut req_body) => {
+                assert!(req_body.required);
+                assert!(req_body.extensions.is_empty());
+                assert_eq!(req_body.content.len(), 1);
+                let json_body = req_body
+                    .content
+                    .swap_remove("application/json")
+                    .expect("should have JSON body");
+                assert!(json_body.extensions.is_empty());
+                match json_body.schema.expect("no json body schema?!").json_schema {
+                    Schema::Bool(_) => {
+                        tracing::warn!("unexpected bool schema");
+                        None
+                    }
+                    Schema::Object(obj) => {
+                        if !obj.is_ref() {
+                            tracing::warn!(?obj, "unexpected non-$ref json body schema");
+                        }
+                        obj.reference
+                    }
+                }
+            }
             ReferenceOr::Reference { .. } => {
                 tracing::warn!("$ref request bodies are not currently supported");
                 None
