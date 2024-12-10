@@ -1,10 +1,12 @@
+#![allow(dead_code)]
+
 use std::{collections::BTreeMap, io, path::Path};
 
 use aide::openapi::{self, OpenApi, ReferenceOr};
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use fs_err as fs;
-use schemars::schema::SchemaObject;
+use schemars::schema::{InstanceType, Schema, SchemaObject};
 use tempfile::TempDir;
 
 #[derive(Parser)]
@@ -74,7 +76,11 @@ struct Operation {
     /// The operation's endpoint path.
     path: String,
     /// Path parameters.
-    path_params: Vec<openapi::SchemaObject>,
+    path_params: Vec<String>,
+    /// Header parameters.
+    header_params: Vec<openapi::ParameterData>,
+    /// Query parameters.
+    query_params: Vec<openapi::ParameterData>,
     /// Name of the request body type, if any.
     request_body: Option<openapi::RequestBody>,
 }
@@ -97,6 +103,8 @@ impl Operation {
         }
 
         let mut path_params = Vec::new();
+        let mut query_params = Vec::new();
+        let mut header_params = Vec::new();
 
         for param in op.parameters {
             match param {
@@ -108,23 +116,33 @@ impl Operation {
                     style: openapi::PathStyle::Simple,
                 }) => {
                     assert!(parameter_data.required, "no optional path params");
-                    let openapi::ParameterSchemaOrContent::Schema(schema_object) =
-                        parameter_data.format
-                    else {
+                    let openapi::ParameterSchemaOrContent::Schema(s) = parameter_data.format else {
                         tracing::warn!("found unexpected 'content' parameter data format");
                         return None;
                     };
-                    path_params.push(schema_object);
+                    let Schema::Object(obj) = s.json_schema else {
+                        tracing::warn!("found unexpected `true` schema for path parameter");
+                        return None;
+                    };
+                    if obj.instance_type != Some(InstanceType::String.into()) {
+                        tracing::warn!(?obj.instance_type, "unsupported path parameter type");
+                        return None;
+                    }
+                    path_params.push(parameter_data.name);
                 }
-                // used for idempotency-key
-                ReferenceOr::Item(openapi::Parameter::Header { .. }) => {
-                    // TODO
-                    return None;
+                ReferenceOr::Item(openapi::Parameter::Header {
+                    parameter_data,
+                    style: openapi::HeaderStyle::Simple,
+                }) => {
+                    header_params.push(parameter_data);
                 }
-                // used for list parameters
-                ReferenceOr::Item(openapi::Parameter::Query { .. }) => {
-                    // TODO
-                    return None;
+                ReferenceOr::Item(openapi::Parameter::Query {
+                    parameter_data,
+                    allow_reserved: false,
+                    style: openapi::QueryStyle::Form,
+                    allow_empty_value: None,
+                }) => {
+                    query_params.push(parameter_data);
                 }
                 ReferenceOr::Item(parameter) => {
                     tracing::warn!(
@@ -149,6 +167,8 @@ impl Operation {
             method: method.to_owned(),
             path: path.to_owned(),
             path_params,
+            header_params,
+            query_params,
             request_body,
         };
         Some((res_name.to_owned(), op))
@@ -156,7 +176,7 @@ impl Operation {
 }
 
 impl Api {
-    fn new(paths: openapi::Paths, components: &openapi::Components) -> anyhow::Result<Self> {
+    fn new(paths: openapi::Paths, _components: &openapi::Components) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
         for (path, pi) in paths {
