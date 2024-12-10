@@ -1,6 +1,6 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, io, path::Path};
 
-use aide::openapi::{self, OpenApi};
+use aide::openapi::{self, OpenApi, ReferenceOr};
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use fs_err as fs;
@@ -19,7 +19,7 @@ enum Command {
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().with_writer(io::stderr).init();
 
     let args = CliArgs::parse();
     let Command::Generate { input_file } = args.command;
@@ -34,7 +34,8 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(paths) = spec.paths {
         let api = Api::new(paths, components).unwrap();
-        dbg!(api).write_rust_stuff(&output_dir).unwrap();
+        println!("{api:#?}");
+        api.write_rust_stuff(&output_dir).unwrap();
     }
 
     Ok(())
@@ -72,6 +73,86 @@ struct Operation {
     method: String,
     /// The operation's endpoint path.
     path: String,
+    /// Path parameters.
+    path_params: Vec<openapi::SchemaObject>,
+    /// Name of the request body type, if any.
+    request_body: Option<openapi::RequestBody>,
+}
+
+impl Operation {
+    #[tracing::instrument(name = "operation_from_openapi", skip(op), fields(op_id))]
+    fn from_openapi(path: &str, method: &str, op: openapi::Operation) -> Option<(String, Self)> {
+        let Some(op_id) = &op.operation_id else {
+            // ignore operations without an operationId
+            return None;
+        };
+        let op_id_parts: Vec<_> = op_id.split(".").collect();
+        let Ok([version, res_name, op_name]): Result<[_; 3], _> = op_id_parts.try_into() else {
+            tracing::debug!(op_id, "skipping operation whose ID does not have two dots");
+            return None;
+        };
+        if version != "v1" {
+            tracing::warn!(op_id, "found operation whose ID does not begin with v1");
+            return None;
+        }
+
+        let mut path_params = Vec::new();
+
+        for param in op.parameters {
+            match param {
+                ReferenceOr::Reference { .. } => {
+                    tracing::warn!("$ref parameters are not currently supported");
+                }
+                ReferenceOr::Item(openapi::Parameter::Path {
+                    parameter_data,
+                    style: openapi::PathStyle::Simple,
+                }) => {
+                    assert!(parameter_data.required, "no optional path params");
+                    let openapi::ParameterSchemaOrContent::Schema(schema_object) =
+                        parameter_data.format
+                    else {
+                        tracing::warn!("found unexpected 'content' parameter data format");
+                        return None;
+                    };
+                    path_params.push(schema_object);
+                }
+                // used for idempotency-key
+                ReferenceOr::Item(openapi::Parameter::Header { .. }) => {
+                    // TODO
+                    return None;
+                }
+                // used for list parameters
+                ReferenceOr::Item(openapi::Parameter::Query { .. }) => {
+                    // TODO
+                    return None;
+                }
+                ReferenceOr::Item(parameter) => {
+                    tracing::warn!(
+                        ?parameter,
+                        "this kind of parameter is not currently supported"
+                    );
+                    return None;
+                }
+            }
+        }
+
+        let request_body = op.request_body.and_then(|b| match b {
+            ReferenceOr::Item(req_body) => Some(req_body),
+            ReferenceOr::Reference { .. } => {
+                tracing::warn!("$ref request bodies are not currently supported");
+                None
+            }
+        });
+
+        let op = Operation {
+            name: op_name.to_owned(),
+            method: method.to_owned(),
+            path: path.to_owned(),
+            path_params,
+            request_body,
+        };
+        Some((res_name.to_owned(), op))
+    }
 }
 
 impl Api {
@@ -82,30 +163,19 @@ impl Api {
             let path_item = pi
                 .into_item()
                 .context("$ref paths are currently not supported")?;
-            for (method, op) in path_item {
-                let Some(op_id) = &op.operation_id else {
-                    // ignore operations without an operationId
-                    continue;
-                };
-                let op_id_parts: Vec<_> = op_id.split(".").collect();
-                let Ok([version, res_name, op_name]): Result<[_; 3], _> = op_id_parts.try_into()
-                else {
-                    tracing::info!(op_id, "skipping operation whose ID does not have two dots");
-                    continue;
-                };
-                if version != "v1" {
-                    tracing::warn!(op_id, "found operation whose ID does not begin with v1");
-                    continue;
-                }
 
-                let resource = resources
-                    .entry(res_name.to_owned())
-                    .or_insert_with(Resource::default);
-                resource.operations.push(Operation {
-                    name: op_name.to_owned(),
-                    method: method.to_owned(),
-                    path: path.clone(),
-                });
+            if !path_item.parameters.is_empty() {
+                tracing::info!("parameters at the path item level are not currently supported");
+                continue;
+            }
+
+            for (method, op) in path_item {
+                if let Some((res_name, op)) = Operation::from_openapi(&path, method, op) {
+                    let resource = resources
+                        .entry(res_name.to_owned())
+                        .or_insert_with(Resource::default);
+                    resource.operations.push(op);
+                }
             }
         }
 
