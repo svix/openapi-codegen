@@ -262,6 +262,7 @@ dependencies = [
  "anyhow",
  "clap",
  "fs-err",
+ "indexmap",
  "schemars",
  "serde_json",
  "tempfile",

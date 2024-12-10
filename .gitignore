@@ -1,3 +1,4 @@
 /target
 /openapi.json
-/spec.ron
+/api.ron
+/types.ron

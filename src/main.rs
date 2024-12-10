@@ -1,11 +1,16 @@
 #![allow(dead_code)]
 
-use std::{collections::BTreeMap, io, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::{self, BufWriter, Write as _},
+    path::Path,
+};
 
 use aide::openapi::{self, OpenApi, ReferenceOr};
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
-use fs_err as fs;
+use fs_err::{self as fs, File};
+use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema, SchemaObject};
 use tempfile::TempDir;
 
@@ -31,13 +36,22 @@ fn main() -> anyhow::Result<()> {
 
     let output_dir = TempDir::new().context("failed to create tempdir")?;
 
-    let empty_components = openapi::Components::default();
-    let components = spec.components.as_ref().unwrap_or(&empty_components);
+    let mut components = spec.components.unwrap_or_default();
 
     if let Some(paths) = spec.paths {
-        let api = Api::new(paths, components).unwrap();
-        println!("{api:#?}");
-        api.write_rust_stuff(&output_dir).unwrap();
+        let api = Api::new(paths).unwrap();
+        {
+            let mut api_file = BufWriter::new(File::create("api.ron")?);
+            writeln!(api_file, "{api:#?}")?;
+        }
+
+        {
+            let types = api.types(&mut components.schemas);
+            let mut types_file = BufWriter::new(File::create("types.ron")?);
+            writeln!(types_file, "{types:#?}")?;
+        }
+
+        api.write_rust_stuff(&output_dir)?;
     }
 
     Ok(())
@@ -82,7 +96,7 @@ struct Operation {
     /// Query parameters.
     query_params: Vec<openapi::ParameterData>,
     /// Name of the request body type, if any.
-    request_body: Option<String>,
+    request_body_component: Option<String>,
 }
 
 impl Operation {
@@ -154,7 +168,7 @@ impl Operation {
             }
         }
 
-        let request_body = op.request_body.and_then(|b| match b {
+        let request_body_component = op.request_body.and_then(|b| match b {
             ReferenceOr::Item(mut req_body) => {
                 assert!(req_body.required);
                 assert!(req_body.extensions.is_empty());
@@ -190,14 +204,14 @@ impl Operation {
             path_params,
             header_params,
             query_params,
-            request_body,
+            request_body_component,
         };
         Some((res_name.to_owned(), op))
     }
 }
 
 impl Api {
-    fn new(paths: openapi::Paths, _components: &openapi::Components) -> anyhow::Result<Self> {
+    fn new(paths: openapi::Paths) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
         for (path, pi) in paths {
@@ -221,6 +235,40 @@ impl Api {
         }
 
         Ok(Self { resources })
+    }
+
+    fn referenced_components(&self) -> impl Iterator<Item = &str> {
+        self.resources
+            .values()
+            .flat_map(|resource| &resource.operations)
+            .filter_map(|operation| operation.request_body_component.as_deref())
+    }
+
+    fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
+        Types(
+            self.referenced_components()
+                .filter_map(|component_ref| {
+                    let Some(component_name) = component_ref.strip_prefix("#/components/schemas/")
+                    else {
+                        tracing::warn!(
+                            component_ref,
+                            "missing #/components/schemas/ prefix on component ref"
+                        );
+                        return None;
+                    };
+
+                    match schemas.swap_remove(component_name)?.json_schema {
+                        Schema::Bool(_) => {
+                            tracing::warn!("found $ref'erenced bool schema, wat?!");
+                            None
+                        }
+                        Schema::Object(schema_object) => {
+                            Some((component_name.to_owned(), schema_object))
+                        }
+                    }
+                })
+                .collect(),
+        )
     }
 
     fn write_rust_stuff(self, output_dir: impl AsRef<Path>) -> anyhow::Result<()> {
