@@ -106,7 +106,8 @@ impl<'a> {{ resource_type_name }}<'a> {
                 {% if op.request_body_schema_name is defined -%}
                     {{ op.request_body_schema_name | to_snake_case -}}
                 {% endif -%}
-                {% for p in op.query_params %}{{ p.name }},{% endfor %}
+                {% for p in op.query_params %}{{ p.name }},{% endfor -%}
+                {% if has_header_params %}idempotency_key,{% endif %}
             }
         )
         .await
