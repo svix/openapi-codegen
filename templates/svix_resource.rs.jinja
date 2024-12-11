@@ -50,10 +50,10 @@ impl<'a> {{ resource_type_name }}<'a> {
             {%- endif -%}
         {% endif -%}
         {% if op.header_params | length > 0 -%}
-            {# for now, only idempotency-key is supported for the header #}
+            {# for now, only idempotency-key is supported for the header -#}
             options: Option<PostOptions>,
-        {% endif -%}
-    ) -> Result<{{ op.response_body_schema_name | default("()") }}> {
+        {%- endif -%}
+    ) -> Result<{{ op.response_body_schema_name | default("()") | replace("_", "") }}> {
         todo!()
     }
     {% endfor %}
