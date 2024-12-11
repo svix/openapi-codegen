@@ -13,6 +13,11 @@ use crate::{
 
 {% for op in resource.operations -%}
     {% if op.query_params | length > 0 -%}
+    {% set has_required_query_params =
+        op.query_params | selectattr("required") | length > 0 -%}
+    {% if not has_required_query_params -%}
+        #[derive(Default)]
+    {% endif -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {% set ty = p.type.to_rust() %}
@@ -29,7 +34,7 @@ use crate::{
             pub {{ p.name }}: {{ ty }},
         {% endfor -%}
     }
-    {% endif -%}
+    {% endif %}
 {% endfor -%}
 
 struct {{ resource_type_name }}<'a> {
