@@ -96,8 +96,14 @@ impl Api {
             let ctx = context! {
                 resource => resource,
             };
-            let out_file = BufWriter::new(File::create(api_dir.join(format!("{name}.rs")))?);
+            let out_path = api_dir.join(format!("{name}.rs"));
+            let out_file = BufWriter::new(File::create(&out_path)?);
             resource_tpl.render_to_write(ctx, out_file)?;
+
+            _ = std::process::Command::new("rustfmt")
+                .args(["--edition", "2021"])
+                .arg(out_path)
+                .status();
         }
 
         Ok(())

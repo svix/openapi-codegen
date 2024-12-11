@@ -14,7 +14,7 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
     // Templates
     env.add_template(
         "svix_resource",
-        include_str!("../templates/svix_resource.rs.tpl"),
+        include_str!("../templates/svix_resource.rs.jinja"),
     )?;
 
     Ok(env)

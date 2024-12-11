@@ -1,0 +1,59 @@
+#![allow(unused_imports)]
+
+{% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset %}
+{% set resource_type_name = resource.name | to_upper_camel_case -%}
+
+use super::PostOptions;
+use crate::{
+    apis::{{ api_mod_name }},
+    error::Result,
+    models::*,
+    Configuration,
+};
+
+{% for op in resource.operations %}
+{% if op.query_params | length > 0 %}
+struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
+    {% for p in op.query_params -%}
+    {{ p.name }}: (),
+    {% endfor -%}
+}
+{% endif %}
+{% endfor %}
+
+struct {{ resource_type_name }}<'a> {
+    cfg: &'a Configuration,
+}
+
+impl<'a> {{ resource_type_name }}<'a> {
+    pub(super) fn new(cfg: &'a Configuration) -> Self {
+        Self { cfg }
+    }
+
+    {% for op in resource.operations %}
+    pub async fn {{ op.name | to_snake_case }}(
+        {% for p in op.path_params -%}
+            {{ p }}: String,
+        {% endfor -%}
+        {% if op.request_body_schema_name -%}
+            {{ op.request_body_schema_name | to_snake_case }}: {{ op.request_body_schema_name }},
+        {% endif -%}
+        {% if op.query_params | length > 0 -%}
+            {% set options_type_name -%}
+                {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
+            {%- endset -%}
+            {% if op.query_params | selectattr("required") | length > 0 -%}
+            options: {{ options_type_name }},
+            {% else -%}
+            options: Option<{{ options_type_name }}>,
+            {% endif -%}
+        {% endif -%}
+        {% if op.header_params | length > 0 -%}
+            {# for now, only idempotency-key is supported for the header #}
+            options: Option<PostOptions>,
+        {% endif -%}
+    ) -> Result<()> {
+
+    }
+    {% endfor %}
+}
