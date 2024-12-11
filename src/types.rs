@@ -81,7 +81,8 @@ impl FieldType {
     fn to_rust_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
-            Self::UInt64 => "u64".into(),
+            // FIXME: Looks like all integers are currently i32
+            Self::UInt64 => "i32".into(),
             Self::String => "String".into(),
             // FIXME: Use a better type
             Self::DateTime => "String".into(),
