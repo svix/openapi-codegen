@@ -1,14 +1,19 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::BufWriter,
     path::Path,
 };
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
+use fs_err::{self as fs, File};
+use heck::ToSnakeCase as _;
 use indexmap::IndexMap;
+use minijinja::context;
 use schemars::schema::{InstanceType, Schema};
 
 use crate::{
+    template,
     types::{FieldType, Types},
     util::get_schema_name,
 };
@@ -38,8 +43,8 @@ impl Api {
             for (method, op) in path_item {
                 if let Some((res_name, op)) = Operation::from_openapi(&path, method, op) {
                     let resource = resources
-                        .entry(res_name.to_owned())
-                        .or_insert_with(Resource::default);
+                        .entry(res_name.clone())
+                        .or_insert_with(|| Resource::new(res_name));
                     resource.operations.push(op);
                 }
             }
@@ -80,21 +85,44 @@ impl Api {
     }
 
     pub(crate) fn write_rust_stuff(self, output_dir: impl AsRef<Path>) -> anyhow::Result<()> {
-        let _api_dir = output_dir.as_ref().join("api");
+        let minijinja_env = template::env()?;
+        let resource_tpl = minijinja_env.get_template("svix_resource")?;
+
+        let api_dir = output_dir.as_ref().join("api");
+        fs::create_dir(&api_dir)?;
+
+        for (name, resource) in self.resources {
+            let name = name.to_snake_case();
+            let ctx = context! {
+                resource => resource,
+            };
+            let out_file = BufWriter::new(File::create(api_dir.join(format!("{name}.rs")))?);
+            resource_tpl.render_to_write(ctx, out_file)?;
+        }
 
         Ok(())
     }
 }
 
 /// A named group of [`Operation`]s.
-#[derive(Debug, Default)]
+#[derive(Debug, serde::Serialize)]
 struct Resource {
+    name: String,
     operations: Vec<Operation>,
     // TODO: subresources?
 }
 
+impl Resource {
+    fn new(name: String) -> Self {
+        Self {
+            name,
+            operations: Vec::new(),
+        }
+    }
+}
+
 /// A named HTTP endpoint.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct Operation {
     /// The name to use for the operation in code.
     name: String,
@@ -259,13 +287,13 @@ fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct HeaderParam {
     name: String,
     required: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct QueryParam {
     name: String,
     required: bool,

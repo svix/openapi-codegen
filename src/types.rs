@@ -15,7 +15,7 @@ pub(crate) struct Types(pub BTreeMap<String, SchemaObject>);
 /// Supported field type.
 ///
 /// Equivalent to openapi's `type` + `format` + `$ref`.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub(crate) enum FieldType {
     Bool,
     UInt64,

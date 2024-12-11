@@ -9,6 +9,7 @@ use fs_err::{self as fs, File};
 use tempfile::TempDir;
 
 mod api;
+mod template;
 mod types;
 mod util;
 
@@ -53,6 +54,10 @@ fn main() -> anyhow::Result<()> {
 
         api.write_rust_stuff(&output_dir)?;
     }
+
+    // if everything has succeeded, keep the tempdir for further use
+    let path = output_dir.into_path();
+    println!("done! output written to {}", path.display());
 
     Ok(())
 }
