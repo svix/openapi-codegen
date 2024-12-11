@@ -49,6 +49,9 @@ impl<'a> {{ resource_type_name }}<'a> {
     {% for op in resource.operations %}
     {% set has_query_params = op.query_params | length > 0 -%}
     {% set has_header_params = op.header_params | length > 0 -%}
+    {% if op.description is defined -%}
+        #[doc = " {{ op.description }}"]
+    {% endif -%}
     pub async fn {{ op.name | to_snake_case }}(
         &self,
 

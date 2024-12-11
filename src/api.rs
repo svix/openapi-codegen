@@ -140,6 +140,9 @@ struct Operation {
     id: String,
     /// The name to use for the operation in code.
     name: String,
+    /// Description of the operation to use for documentation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
     /// The HTTP method.
     ///
     /// Encoded as "get", "post" or such because that's what aide's PathItem iterator gives us.
@@ -316,6 +319,7 @@ impl Operation {
         let op = Operation {
             id: op_id,
             name: op_name,
+            description: op.description,
             method: method.to_owned(),
             path: path.to_owned(),
             path_params,
