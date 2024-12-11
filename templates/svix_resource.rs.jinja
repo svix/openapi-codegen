@@ -86,7 +86,9 @@ impl<'a> {{ resource_type_name }}<'a> {
             {# unpack query parameter struct -#}
             let {{ query_param_type_name }} {
                 {% for p in op.query_params %}{{ p.name }},{% endfor %}
-            } = options.unwrap_or_default();
+            } = options
+            {%- if not has_required_query_params %}.unwrap_or_default(){% endif -%}
+            ;
         {% endif -%}
 
         {% if has_header_params -%}
