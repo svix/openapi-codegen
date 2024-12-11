@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-{% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset %}
+{% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
 use super::PostOptions;
@@ -11,8 +11,8 @@ use crate::{
     Configuration,
 };
 
-{% for op in resource.operations %}
-    {% if op.query_params | length > 0 %}
+{% for op in resource.operations -%}
+    {% if op.query_params | length > 0 -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {% set ty = p.type.to_rust() %}
@@ -29,8 +29,8 @@ use crate::{
             pub {{ p.name }}: {{ ty }},
         {% endfor -%}
     }
-    {% endif %}
-{% endfor %}
+    {% endif -%}
+{% endfor -%}
 
 struct {{ resource_type_name }}<'a> {
     cfg: &'a Configuration,
@@ -42,30 +42,69 @@ impl<'a> {{ resource_type_name }}<'a> {
     }
 
     {% for op in resource.operations %}
+    {% set has_query_params = op.query_params | length > 0 -%}
+    {% set has_header_params = op.header_params | length > 0 -%}
     pub async fn {{ op.name | to_snake_case }}(
         &self,
+
+        {#- path parameters -#}
         {% for p in op.path_params -%}
             {{ p }}: String,
         {% endfor -%}
+
+        {# body parameter struct -#}
         {% if op.request_body_schema_name is defined -%}
             {{ op.request_body_schema_name | to_snake_case }}: {{ op.request_body_schema_name }},
         {% endif -%}
-        {% if op.query_params | length > 0 -%}
-            {% set options_type_name -%}
+
+        {# query parameter struct -#}
+        {% if has_query_params -%}
+            {% set query_param_type_name -%}
                 {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
             {%- endset -%}
-            {%- if op.query_params | selectattr("required") | length > 0 -%}
-            options: {{ options_type_name }},
+            {% set has_required_query_params =
+                op.query_params | selectattr("required") | length > 0 -%}
+            {%- if has_required_query_params -%}
+                options: {{ query_param_type_name }},
             {%- else -%}
-            options: Option<{{ options_type_name }}>,
+                options: Option<{{ query_param_type_name }}>,
             {%- endif -%}
         {% endif -%}
-        {% if op.header_params | length > 0 -%}
+
+        {# PostOptions -#}
+        {% if has_header_params -%}
             {# for now, only idempotency-key is supported for the header -#}
             options: Option<PostOptions>,
         {%- endif -%}
     ) -> Result<{{ op.response_body_schema_name | default("()") | replace("_", "") }}> {
-        todo!()
+        {% if has_query_params -%}
+            {# unpack query parameter struct -#}
+            let {{ query_param_type_name }} {
+                {% for p in op.query_params %}{{ p.name }},{% endfor %}
+            } = options.unwrap_or_default();
+        {% endif -%}
+
+        {% if has_header_params -%}
+            {# unpack PostOptions -#}
+            let PostOptions { idempotency_key } = options.unwrap_or_default();
+        {% endif -%}
+
+        {% set weird_rust_generator_op_id = op.id | replace(".", "-period-") %}
+        {% set fn_name = weird_rust_generator_op_id | to_snake_case %}
+        {% set params_struct_name -%}
+            {{ weird_rust_generator_op_id | to_upper_camel_case }}Params
+        {%- endset -%}
+        {{ api_mod_name }}::{{ fn_name }}(
+            self.cfg,
+            {{ api_mod_name }}::{{ params_struct_name }} {
+                {% for p in op.path_params -%}{{ p }},{% endfor %}
+                {% if op.request_body_schema_name is defined -%}
+                    {{ op.request_body_schema_name | to_snake_case -}}
+                {% endif -%}
+                {% for p in op.query_params %}{{ p.name }},{% endfor %}
+            }
+        )
+        .await
     }
     {% endfor %}
 }

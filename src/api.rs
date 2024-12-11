@@ -136,6 +136,8 @@ impl Resource {
 /// A named HTTP endpoint.
 #[derive(Debug, serde::Serialize)]
 struct Operation {
+    /// The operation ID from the spec.
+    id: String,
     /// The name to use for the operation in code.
     name: String,
     /// The HTTP method.
@@ -165,7 +167,7 @@ struct Operation {
 impl Operation {
     #[tracing::instrument(name = "operation_from_openapi", skip(op), fields(op_id))]
     fn from_openapi(path: &str, method: &str, op: openapi::Operation) -> Option<(String, Self)> {
-        let Some(op_id) = &op.operation_id else {
+        let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
             return None;
         };
@@ -308,8 +310,12 @@ impl Operation {
             schema_name
         });
 
+        let res_name = res_name.to_owned();
+        let op_name = op_name.to_owned();
+
         let op = Operation {
-            name: op_name.to_owned(),
+            id: op_id,
+            name: op_name,
             method: method.to_owned(),
             path: path.to_owned(),
             path_params,
@@ -318,7 +324,7 @@ impl Operation {
             request_body_schema_name,
             response_body_schema_name,
         };
-        Some((res_name.to_owned(), op))
+        Some((res_name, op))
     }
 }
 
