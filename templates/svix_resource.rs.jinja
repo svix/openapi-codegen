@@ -13,7 +13,6 @@ use crate::{
 
 {% for op in resource.operations %}
     {% if op.query_params | length > 0 %}
-    #[cfg_attr(feature = "clap", derive(clap::Args))]
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {% set ty = p.type.to_rust() %}
@@ -27,7 +26,6 @@ use crate::{
                 /// RFC3339 date string.
                 {% endif -%}
             {% endif -%}
-            #[cfg_attr(feature = "clap", clap(long))]
             pub {{ p.name }}: {{ ty }},
         {% endfor -%}
     }
