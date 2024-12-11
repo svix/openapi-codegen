@@ -43,11 +43,11 @@ impl<'a> {{ resource_type_name }}<'a> {
             {% set options_type_name -%}
                 {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
             {%- endset -%}
-            {% if op.query_params | selectattr("required") | length > 0 -%}
+            {%- if op.query_params | selectattr("required") | length > 0 -%}
             options: {{ options_type_name }},
-            {% else -%}
+            {%- else -%}
             options: Option<{{ options_type_name }}>,
-            {% endif -%}
+            {%- endif -%}
         {% endif -%}
         {% if op.header_params | length > 0 -%}
             {# for now, only idempotency-key is supported for the header #}
