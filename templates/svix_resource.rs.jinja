@@ -15,6 +15,9 @@ use crate::{
     {% if op.query_params | length > 0 %}
     struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
+            {% if p.description is defined -%}
+            #[doc = " {{ p.description }}"]
+            {% endif -%}
             {{ p.name }}: {{ p.type.to_rust() }},
         {% endfor -%}
     }

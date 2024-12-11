@@ -85,10 +85,12 @@ impl Api {
     }
 
     pub(crate) fn write_rust_stuff(self, output_dir: impl AsRef<Path>) -> anyhow::Result<()> {
+        let output_dir = output_dir.as_ref();
+
         let minijinja_env = template::env()?;
         let resource_tpl = minijinja_env.get_template("svix_resource")?;
 
-        let api_dir = output_dir.as_ref().join("api");
+        let api_dir = output_dir.join("api");
         fs::create_dir(&api_dir)?;
 
         for (name, resource) in self.resources {
@@ -100,8 +102,12 @@ impl Api {
             let out_file = BufWriter::new(File::create(&out_path)?);
             resource_tpl.render_to_write(ctx, out_file)?;
 
+            fs::write(
+                output_dir.join(".rustfmt.toml"),
+                include_str!("../.rustfmt.toml"),
+            )?;
             _ = std::process::Command::new("rustfmt")
-                .args(["--edition", "2021"])
+                .args(["+nightly", "--edition", "2021"])
                 .arg(out_path)
                 .status();
         }
@@ -227,6 +233,7 @@ impl Operation {
 
                     query_params.push(QueryParam {
                         name,
+                        description: parameter_data.description,
                         required: parameter_data.required,
                         r#type,
                     });
@@ -372,6 +379,8 @@ struct HeaderParam {
 #[derive(Debug, serde::Serialize)]
 struct QueryParam {
     name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
     required: bool,
     r#type: FieldType,
 }
