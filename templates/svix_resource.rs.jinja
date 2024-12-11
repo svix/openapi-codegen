@@ -12,13 +12,13 @@ use crate::{
 };
 
 {% for op in resource.operations %}
-{% if op.query_params | length > 0 %}
-struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
-    {% for p in op.query_params -%}
-    {{ p.name }}: {{ p.type.to_rust() }},
-    {% endfor -%}
-}
-{% endif %}
+    {% if op.query_params | length > 0 %}
+    struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
+        {% for p in op.query_params -%}
+            {{ p.name }}: {{ p.type.to_rust() }},
+        {% endfor -%}
+    }
+    {% endif %}
 {% endfor %}
 
 struct {{ resource_type_name }}<'a> {
@@ -32,10 +32,11 @@ impl<'a> {{ resource_type_name }}<'a> {
 
     {% for op in resource.operations %}
     pub async fn {{ op.name | to_snake_case }}(
+        &self,
         {% for p in op.path_params -%}
             {{ p }}: String,
         {% endfor -%}
-        {% if op.request_body_schema_name -%}
+        {% if op.request_body_schema_name is defined -%}
             {{ op.request_body_schema_name | to_snake_case }}: {{ op.request_body_schema_name }},
         {% endif -%}
         {% if op.query_params | length > 0 -%}
@@ -52,8 +53,8 @@ impl<'a> {{ resource_type_name }}<'a> {
             {# for now, only idempotency-key is supported for the header #}
             options: Option<PostOptions>,
         {% endif -%}
-    ) -> Result<()> {
-
+    ) -> Result<{{ op.response_body_schema_name | default("()") }}> {
+        todo!()
     }
     {% endfor %}
 }

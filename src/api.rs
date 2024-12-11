@@ -149,7 +149,11 @@ struct Operation {
     /// Query parameters.
     query_params: Vec<QueryParam>,
     /// Name of the request body type, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
     request_body_schema_name: Option<String>,
+    /// Name of the response body type, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_body_schema_name: Option<String>,
 }
 
 impl Operation {
@@ -249,21 +253,52 @@ impl Operation {
                 assert!(json_body.extensions.is_empty());
                 match json_body.schema.expect("no json body schema?!").json_schema {
                     Schema::Bool(_) => {
-                        tracing::warn!("unexpected bool schema");
+                        tracing::error!("unexpected bool schema");
                         None
                     }
                     Schema::Object(obj) => {
                         if !obj.is_ref() {
-                            tracing::warn!(?obj, "unexpected non-$ref json body schema");
+                            tracing::error!(?obj, "unexpected non-$ref json body schema");
                         }
                         get_schema_name(obj.reference)
                     }
                 }
             }
             ReferenceOr::Reference { .. } => {
-                tracing::warn!("$ref request bodies are not currently supported");
+                tracing::error!("$ref request bodies are not currently supported");
                 None
             }
+        });
+
+        let response_body_schema_name = op.responses.and_then(|r| {
+            assert_eq!(r.default, None);
+            assert!(r.extensions.is_empty());
+            let mut success_responses = r.responses.into_iter().filter(|(st, _)| {
+                match st {
+                    openapi::StatusCode::Code(c) => match c {
+                        0..100 => tracing::error!("invalid status code < 100"),
+                        100..200 => tracing::error!("what is this? status code {c}..."),
+                        200..300 => return true,
+                        300..400 => tracing::error!("what is this? status code {c}..."),
+                        400.. => {}
+                    },
+                    openapi::StatusCode::Range(_) => {
+                        tracing::error!("unsupported status code range");
+                    }
+                }
+
+                false
+            });
+
+            let (_, resp) = success_responses
+                .next()
+                .expect("every operation must have one success response");
+            let schema_name = response_body_schema_name(resp);
+            for (_, resp) in success_responses {
+                assert_eq!(schema_name, response_body_schema_name(resp));
+            }
+
+            schema_name
         });
 
         let op = Operation {
@@ -274,6 +309,7 @@ impl Operation {
             header_params,
             query_params,
             request_body_schema_name,
+            response_body_schema_name,
         };
         Some((res_name.to_owned(), op))
     }
@@ -291,6 +327,40 @@ fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::
     }
 
     Ok(())
+}
+
+fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<String> {
+    match resp {
+        ReferenceOr::Item(mut resp_body) => {
+            assert!(resp_body.extensions.is_empty());
+            if resp_body.content.is_empty() {
+                return None;
+            }
+
+            assert_eq!(resp_body.content.len(), 1);
+            let json_body = resp_body
+                .content
+                .swap_remove("application/json")
+                .expect("should have JSON body");
+            assert!(json_body.extensions.is_empty());
+            match json_body.schema.expect("no json body schema?!").json_schema {
+                Schema::Bool(_) => {
+                    tracing::error!("unexpected bool schema");
+                    None
+                }
+                Schema::Object(obj) => {
+                    if !obj.is_ref() {
+                        tracing::error!(?obj, "unexpected non-$ref json body schema");
+                    }
+                    get_schema_name(obj.reference)
+                }
+            }
+        }
+        ReferenceOr::Reference { .. } => {
+            tracing::error!("$ref response bodies are not currently supported");
+            None
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize)]
