@@ -16,7 +16,13 @@ use crate::{
     struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {% if p.description is defined -%}
-            #[doc = " {{ p.description }}"]
+                #[doc = " {{ p.description }}"]
+                {# we currently use String for date-time params, for backwards compat -#}
+                {# document the format so it's not _that_ awkward -#}
+                {% if p.type.is_datetime() -%}
+                ///
+                /// RFC3339 date string.
+                {% endif -%}
             {% endif -%}
             {{ p.name }}: {{ p.type.to_rust() }},
         {% endfor -%}

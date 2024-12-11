@@ -41,14 +41,14 @@ impl FieldType {
 
         Ok(match obj.instance_type {
             Some(SingleOrVec::Single(ty)) => match *ty {
-                InstanceType::Boolean => FieldType::Bool,
+                InstanceType::Boolean => Self::Bool,
                 InstanceType::Integer => match obj.format.as_deref() {
-                    Some("uint64") => FieldType::UInt64,
+                    Some("uint64") => Self::UInt64,
                     f => bail!("unsupported integer format: `{f:?}`"),
                 },
                 InstanceType::String => match obj.format.as_deref() {
-                    None => FieldType::String,
-                    Some("date-time") => FieldType::DateTime,
+                    None => Self::String,
+                    Some("date-time") => Self::DateTime,
                     Some(f) => bail!("unsupported string format: `{f:?}`"),
                 },
                 InstanceType::Array => {
@@ -64,7 +64,7 @@ impl FieldType {
                             bail!("unsupported multi-typed array parameter: `{types:?}`")
                         }
                     };
-                    FieldType::Set(Box::new(Self::from_json_schema(*inner)?))
+                    Self::Set(Box::new(Self::from_json_schema(*inner)?))
                 }
                 ty => bail!("unsupported type: `{ty:?}`"),
             },
@@ -72,7 +72,7 @@ impl FieldType {
                 bail!("unsupported multi-typed parameter: `{types:?}`")
             }
             None => match get_schema_name(obj.reference) {
-                Some(name) => FieldType::SchemaRef(name),
+                Some(name) => Self::SchemaRef(name),
                 None => bail!("unsupported type-less parameter"),
             },
         })
@@ -80,14 +80,14 @@ impl FieldType {
 
     fn to_rust_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::Bool => "bool".into(),
-            FieldType::UInt64 => "u64".into(),
-            FieldType::String => "String".into(),
+            Self::Bool => "bool".into(),
+            Self::UInt64 => "u64".into(),
+            Self::String => "String".into(),
             // FIXME: Use a better type
-            FieldType::DateTime => "String".into(),
+            Self::DateTime => "String".into(),
             // FIXME: Use BTreeSet
-            FieldType::Set(field_type) => format!("Vec<{}>", field_type.to_rust_typename()).into(),
-            FieldType::SchemaRef(name) => name.clone().into(),
+            Self::Set(field_type) => format!("Vec<{}>", field_type.to_rust_typename()).into(),
+            Self::SchemaRef(name) => name.clone().into(),
         }
     }
 }
@@ -105,18 +105,26 @@ impl minijinja::value::Object for FieldType {
     ) -> Result<minijinja::Value, minijinja::Error> {
         match method {
             "to_rust" => {
-                if !args.is_empty() {
-                    return Err(minijinja::Error::new(
-                        minijinja::ErrorKind::TooManyArguments,
-                        "to_rust does not take any arguments",
-                    ));
-                }
-
+                ensure_no_args(args, "to_rust")?;
                 Ok(self.to_rust_typename().into())
+            }
+            "is_datetime" => {
+                ensure_no_args(args, "is_datetime")?;
+                Ok(matches!(**self, Self::DateTime).into())
             }
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
     }
+}
+
+fn ensure_no_args(args: &[minijinja::Value], method_name: &str) -> Result<(), minijinja::Error> {
+    if !args.is_empty() {
+        return Err(minijinja::Error::new(
+            minijinja::ErrorKind::TooManyArguments,
+            format!("{method_name} does not take any arguments"),
+        ));
+    }
+    Ok(())
 }
 
 impl serde::Serialize for FieldType {
