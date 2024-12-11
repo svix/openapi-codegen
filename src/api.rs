@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
@@ -46,29 +49,26 @@ impl Api {
         self.resources
             .values()
             .flat_map(|resource| &resource.operations)
-            .filter_map(|operation| operation.request_body_component.as_deref())
+            .filter_map(|operation| operation.request_body_schema_name.as_deref())
     }
 
     pub(crate) fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
+        let components: BTreeSet<_> = self.referenced_components().collect();
         Types(
-            self.referenced_components()
-                .filter_map(|component_ref| {
-                    let Some(component_name) = component_ref.strip_prefix("#/components/schemas/")
-                    else {
-                        tracing::warn!(
-                            component_ref,
-                            "missing #/components/schemas/ prefix on component ref"
-                        );
+            components
+                .into_iter()
+                .filter_map(|schema_name| {
+                    let Some(s) = schemas.swap_remove(schema_name) else {
+                        tracing::warn!(schema_name, "schema not found");
                         return None;
                     };
-
-                    match schemas.swap_remove(component_name)?.json_schema {
+                    match s.json_schema {
                         Schema::Bool(_) => {
                             tracing::warn!("found $ref'erenced bool schema, wat?!");
                             None
                         }
                         Schema::Object(schema_object) => {
-                            Some((component_name.to_owned(), schema_object))
+                            Some((schema_name.to_owned(), schema_object))
                         }
                     }
                 })
@@ -112,7 +112,7 @@ struct Operation {
     /// Query parameters.
     query_params: Vec<openapi::ParameterData>,
     /// Name of the request body type, if any.
-    request_body_component: Option<String>,
+    request_body_schema_name: Option<String>,
 }
 
 impl Operation {
@@ -186,7 +186,7 @@ impl Operation {
             }
         }
 
-        let request_body_component = op.request_body.and_then(|b| match b {
+        let request_body_schema_name = op.request_body.and_then(|b| match b {
             ReferenceOr::Item(mut req_body) => {
                 assert!(req_body.required);
                 assert!(req_body.extensions.is_empty());
@@ -205,7 +205,16 @@ impl Operation {
                         if !obj.is_ref() {
                             tracing::warn!(?obj, "unexpected non-$ref json body schema");
                         }
-                        obj.reference
+                        obj.reference.and_then(|r| {
+                            let schema_name = r.strip_prefix("#/components/schemas/");
+                            if schema_name.is_none() {
+                                tracing::warn!(
+                                    component_ref = r,
+                                    "missing #/components/schemas/ prefix on component ref"
+                                );
+                            };
+                            schema_name.map(ToOwned::to_owned)
+                        })
                     }
                 }
             }
@@ -222,7 +231,7 @@ impl Operation {
             path_params,
             header_params,
             query_params,
-            request_body_component,
+            request_body_schema_name,
         };
         Some((res_name.to_owned(), op))
     }
