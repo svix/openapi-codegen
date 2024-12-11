@@ -106,7 +106,7 @@ impl<'a> {{ resource_type_name }}<'a> {
             {{ api_mod_name }}::{{ params_struct_name }} {
                 {% for p in op.path_params -%}{{ p }},{% endfor %}
                 {% if op.request_body_schema_name is defined -%}
-                    {{ op.request_body_schema_name | to_snake_case -}}
+                    {{ op.request_body_schema_name | to_snake_case -}},
                 {% endif -%}
                 {% for p in op.query_params %}{{ p.name }},{% endfor -%}
                 {% if has_header_params %}idempotency_key,{% endif %}
