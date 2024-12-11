@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
 use aide::openapi::{self, ReferenceOr};
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 
@@ -102,9 +102,13 @@ struct Operation {
     /// The operation's endpoint path.
     path: String,
     /// Path parameters.
+    ///
+    /// Only required string-typed parameters are currently supported.
     path_params: Vec<String>,
     /// Header parameters.
-    header_params: Vec<openapi::ParameterData>,
+    ///
+    /// Only string-typed parameters are currently supported.
+    header_params: Vec<HeaderParam>,
     /// Query parameters.
     query_params: Vec<openapi::ParameterData>,
     /// Name of the request body type, if any.
@@ -136,31 +140,33 @@ impl Operation {
             match param {
                 ReferenceOr::Reference { .. } => {
                     tracing::warn!("$ref parameters are not currently supported");
+                    return None;
                 }
                 ReferenceOr::Item(openapi::Parameter::Path {
                     parameter_data,
                     style: openapi::PathStyle::Simple,
                 }) => {
                     assert!(parameter_data.required, "no optional path params");
-                    let openapi::ParameterSchemaOrContent::Schema(s) = parameter_data.format else {
-                        tracing::warn!("found unexpected 'content' parameter data format");
-                        return None;
-                    };
-                    let Schema::Object(obj) = s.json_schema else {
-                        tracing::warn!("found unexpected `true` schema for path parameter");
-                        return None;
-                    };
-                    if obj.instance_type != Some(InstanceType::String.into()) {
-                        tracing::warn!(?obj.instance_type, "unsupported path parameter type");
+                    if let Err(e) = enforce_string_parameter(&parameter_data) {
+                        tracing::warn!("unsupported path parameter: {e}");
                         return None;
                     }
+
                     path_params.push(parameter_data.name);
                 }
                 ReferenceOr::Item(openapi::Parameter::Header {
                     parameter_data,
                     style: openapi::HeaderStyle::Simple,
                 }) => {
-                    header_params.push(parameter_data);
+                    if let Err(e) = enforce_string_parameter(&parameter_data) {
+                        tracing::warn!("unsupported header parameter: {e}");
+                        return None;
+                    }
+
+                    header_params.push(HeaderParam {
+                        name: parameter_data.name,
+                        required: parameter_data.required,
+                    });
                 }
                 ReferenceOr::Item(openapi::Parameter::Query {
                     parameter_data,
@@ -220,4 +226,24 @@ impl Operation {
         };
         Some((res_name.to_owned(), op))
     }
+}
+
+fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::Result<()> {
+    let openapi::ParameterSchemaOrContent::Schema(s) = &parameter_data.format else {
+        bail!("found unexpected 'content' data format");
+    };
+    let Schema::Object(obj) = &s.json_schema else {
+        bail!("found unexpected `true` schema");
+    };
+    if obj.instance_type != Some(InstanceType::String.into()) {
+        bail!("unsupported path parameter type `{:?}`", obj.instance_type);
+    }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+struct HeaderParam {
+    name: String,
+    required: bool,
 }
