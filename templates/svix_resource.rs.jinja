@@ -37,7 +37,7 @@ use crate::{
     {% endif %}
 {% endfor -%}
 
-struct {{ resource_type_name }}<'a> {
+pub struct {{ resource_type_name }}<'a> {
     cfg: &'a Configuration,
 }
 
