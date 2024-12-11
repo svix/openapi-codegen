@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use aide::openapi::{self};
 use anyhow::{bail, ensure, Context as _};
@@ -15,7 +15,7 @@ pub(crate) struct Types(pub BTreeMap<String, SchemaObject>);
 /// Supported field type.
 ///
 /// Equivalent to openapi's `type` + `format` + `$ref`.
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug)]
 pub(crate) enum FieldType {
     Bool,
     UInt64,
@@ -76,5 +76,54 @@ impl FieldType {
                 None => bail!("unsupported type-less parameter"),
             },
         })
+    }
+
+    fn to_rust_typename(&self) -> Cow<'_, str> {
+        match self {
+            FieldType::Bool => "bool".into(),
+            FieldType::UInt64 => "u64".into(),
+            FieldType::String => "String".into(),
+            // FIXME: Use a better type
+            FieldType::DateTime => "String".into(),
+            // FIXME: Use BTreeSet
+            FieldType::Set(field_type) => format!("Vec<{}>", field_type.to_rust_typename()).into(),
+            FieldType::SchemaRef(name) => name.clone().into(),
+        }
+    }
+}
+
+impl minijinja::value::Object for FieldType {
+    fn repr(self: &Arc<Self>) -> minijinja::value::ObjectRepr {
+        minijinja::value::ObjectRepr::Plain
+    }
+
+    fn call_method(
+        self: &Arc<Self>,
+        _state: &minijinja::State<'_, '_>,
+        method: &str,
+        args: &[minijinja::Value],
+    ) -> Result<minijinja::Value, minijinja::Error> {
+        match method {
+            "to_rust" => {
+                if !args.is_empty() {
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::TooManyArguments,
+                        "to_rust does not take any arguments",
+                    ));
+                }
+
+                Ok(self.to_rust_typename().into())
+            }
+            _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
+        }
+    }
+}
+
+impl serde::Serialize for FieldType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        minijinja::Value::from_object(self.clone()).serialize(serializer)
     }
 }
