@@ -1,18 +1,16 @@
 #![allow(dead_code)]
 
-use std::{
-    collections::BTreeMap,
-    io::{self, BufWriter, Write as _},
-};
+use std::io::{self, BufWriter, Write as _};
 
 use aide::openapi::OpenApi;
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs, File};
-use schemars::schema::SchemaObject;
 use tempfile::TempDir;
 
 mod api;
+mod types;
+mod util;
 
 use self::api::Api;
 
@@ -58,9 +56,3 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-/// Named types referenced by the [`Api`].
-///
-/// Intermediate representation of (some) `components` from the spec.
-#[derive(Debug)]
-struct Types(BTreeMap<String, SchemaObject>);

@@ -8,7 +8,10 @@ use anyhow::{bail, Context as _};
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 
-use super::Types;
+use crate::{
+    types::{FieldType, Types},
+    util::get_schema_name,
+};
 
 /// The API we generate a client for.
 ///
@@ -110,7 +113,7 @@ struct Operation {
     /// Only string-typed parameters are currently supported.
     header_params: Vec<HeaderParam>,
     /// Query parameters.
-    query_params: Vec<openapi::ParameterData>,
+    query_params: Vec<QueryParam>,
     /// Name of the request body type, if any.
     request_body_schema_name: Option<String>,
 }
@@ -174,7 +177,21 @@ impl Operation {
                     style: openapi::QueryStyle::Form,
                     allow_empty_value: None,
                 }) => {
-                    query_params.push(parameter_data);
+                    let name = parameter_data.name;
+                    let _guard = tracing::info_span!("field_type_from_openapi", name).entered();
+                    let r#type = match FieldType::from_openapi(parameter_data.format) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            tracing::warn!("unsupport query parameter type: {e}");
+                            return None;
+                        }
+                    };
+
+                    query_params.push(QueryParam {
+                        name,
+                        required: parameter_data.required,
+                        r#type,
+                    });
                 }
                 ReferenceOr::Item(parameter) => {
                     tracing::warn!(
@@ -205,16 +222,7 @@ impl Operation {
                         if !obj.is_ref() {
                             tracing::warn!(?obj, "unexpected non-$ref json body schema");
                         }
-                        obj.reference.and_then(|r| {
-                            let schema_name = r.strip_prefix("#/components/schemas/");
-                            if schema_name.is_none() {
-                                tracing::warn!(
-                                    component_ref = r,
-                                    "missing #/components/schemas/ prefix on component ref"
-                                );
-                            };
-                            schema_name.map(ToOwned::to_owned)
-                        })
+                        get_schema_name(obj.reference)
                     }
                 }
             }
@@ -255,4 +263,11 @@ fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::
 struct HeaderParam {
     name: String,
     required: bool,
+}
+
+#[derive(Debug)]
+struct QueryParam {
+    name: String,
+    required: bool,
+    r#type: FieldType,
 }
