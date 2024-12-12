@@ -1,9 +1,7 @@
-use clap::{Args, Subcommand};
 use chrono::{DateTime, Utc};
 use colored_json::ColorMode;
 
-use crate::cli_types::PostOptions;
-use crate::json::JsonOf;
+use crate::{cli_types::PostOptions, json::JsonOf};
 
 {% set resource_snake_case = resource.name | to_snake_case -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
