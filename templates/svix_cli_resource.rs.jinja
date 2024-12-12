@@ -10,6 +10,7 @@ use crate::json::JsonOf;
 {% set resource_id_name %}{{ resource_snake_case }}_id{% endset -%}
 {% if resource.name == "application" %}{% set resource_id_name = "app_id" %}{% endif -%}
 {% if resource.name == "message" %}{% set resource_id_name = "msg_id" %}{% endif -%}
+{% if resource.name == "integration" %}{% set resource_id_name = "integ_id" %}{% endif -%}
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -116,9 +117,9 @@ impl {{ resource_type_name }}Commands {
                                 {% set has_required_query_params =
                                     op.query_params | selectattr("required") | length > 0 -%}
                                 {%- if has_required_query_params -%}
-                                    Some(options.into()),
-                                {% else -%}
                                     options.into(),
+                                {% else -%}
+                                    Some(options.into()),
                                 {% endif -%}
                             {% endif -%}
 
