@@ -20,7 +20,11 @@ use crate::{
     {% endif -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
-            {% set ty = p.type.to_rust() %}
+            {% if p.type.is_datetime() -%}
+                {% set ty = "String" -%}
+            {% else -%}
+                {% set ty = p.type.to_rust() -%}
+            {% endif -%}
             {% if not p.required %}{% set ty %}Option<{{ ty }}>{% endset %}{% endif %}
             {% if p.description is defined -%}
                 #[doc = " {{ p.description }}"]
@@ -83,7 +87,7 @@ impl<'a> {{ resource_type_name }}<'a> {
         {% if has_header_params -%}
             {# for now, only idempotency-key is supported for the header -#}
             options: Option<PostOptions>,
-        {%- endif -%}
+        {%- endif %}
     ) -> Result<{{ op.response_body_schema_name | default("()") | replace("_", "") }}> {
         {% if has_query_params -%}
             {# unpack query parameter struct -#}

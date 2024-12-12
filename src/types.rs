@@ -84,8 +84,8 @@ impl FieldType {
             // FIXME: Looks like all integers are currently i32
             Self::UInt64 => "i32".into(),
             Self::String => "String".into(),
-            // FIXME: Use a better type
-            Self::DateTime => "String".into(),
+            // FIXME: Depends on those chrono imports being in scope, not that great..
+            Self::DateTime => "DateTime<Utc>".into(),
             // FIXME: Use BTreeSet
             Self::Set(field_type) => format!("Vec<{}>", field_type.to_rust_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),

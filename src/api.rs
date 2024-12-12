@@ -11,6 +11,7 @@ use heck::ToSnakeCase as _;
 use indexmap::IndexMap;
 use minijinja::context;
 use schemars::schema::{InstanceType, Schema};
+use serde::Serialize;
 
 use crate::{
     template,
@@ -87,33 +88,45 @@ impl Api {
     pub(crate) fn write_rust_stuff(self, output_dir: impl AsRef<Path>) -> anyhow::Result<()> {
         let output_dir = output_dir.as_ref();
 
+        fs::write(
+            output_dir.join(".rustfmt.toml"),
+            include_str!("../.rustfmt.toml"),
+        )?;
+
         let minijinja_env = template::env()?;
-        let resource_tpl = minijinja_env.get_template("svix_resource")?;
+        let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource")?;
+        let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource")?;
 
         let api_dir = output_dir.join("api");
+        let cli_dir = output_dir.join("cli");
         fs::create_dir(&api_dir)?;
+        fs::create_dir(&cli_dir)?;
 
         for (name, resource) in self.resources {
-            let name = name.to_snake_case();
-            let ctx = context! {
-                resource => resource,
-            };
-            let out_path = api_dir.join(format!("{name}.rs"));
-            let out_file = BufWriter::new(File::create(&out_path)?);
-            resource_tpl.render_to_write(ctx, out_file)?;
-
-            fs::write(
-                output_dir.join(".rustfmt.toml"),
-                include_str!("../.rustfmt.toml"),
-            )?;
-            _ = std::process::Command::new("rustfmt")
-                .args(["+nightly", "--edition", "2021"])
-                .arg(out_path)
-                .status();
+            let filename = format!("{}.rs", name.to_snake_case());
+            let ctx = context! { resource => resource };
+            write_rust(&api_dir.join(&filename), &lib_resource_tpl, &ctx)?;
+            write_rust(&cli_dir.join(&filename), &cli_resource_tpl, &ctx)?;
         }
 
         Ok(())
     }
+}
+
+fn write_rust(
+    path: &Path,
+    tpl: &minijinja::Template<'_, '_>,
+    ctx: impl Serialize,
+) -> anyhow::Result<()> {
+    let out_file = BufWriter::new(File::create(path)?);
+    tpl.render_to_write(&ctx, out_file)?;
+
+    _ = std::process::Command::new("rustfmt")
+        .args(["+nightly", "--edition", "2021"])
+        .arg(path)
+        .status();
+
+    Ok(())
 }
 
 /// A named group of [`Operation`]s.

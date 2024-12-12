@@ -1,0 +1,138 @@
+use clap::{Args, Subcommand};
+use chrono::{DateTime, Utc};
+
+use crate::cli_types::PostOptions;
+use crate::json::JsonOf;
+
+{% set resource_snake_case = resource.name | to_snake_case -%}
+{% set resource_type_name = resource.name | to_upper_camel_case -%}
+{% set resource_id_name %}{{ resource_snake_case }}_id{% endset -%}
+{% if resource.name == "application" %}{% set resource_id_name = "app_id" %}{% endif -%}
+{% if resource.name == "message" %}{% set resource_id_name = "msg_id" %}{% endif -%}
+
+#[derive(Args)]
+#[command(args_conflicts_with_subcommands = true)]
+#[command(flatten_help = true)]
+pub struct {{ resource_type_name }}Args {
+    #[command(subcommand)]
+    pub command: {{ resource_type_name }}Commands,
+}
+
+#[derive(Subcommand)]
+pub enum {{ resource_type_name }}Commands {
+    {% for op in resource.operations -%}
+        {% set has_query_params = op.query_params | length > 0 -%}
+        {% set has_header_params = op.header_params | length > 0 -%}
+
+        {% if op.description is defined -%}
+            #[doc = " {{ op.description }}"]
+        {% endif -%}
+        {{ op.name | to_upper_camel_case }} {
+            {# path parameters -#}
+            {% for p in op.path_params -%}
+                {% if p == resource_id_name -%}
+                    id: String,
+                {% else -%}
+                    {{ p }}: String,
+                {% endif -%}
+            {% endfor -%}
+
+            {# body parameter struct -#}
+            {% if op.request_body_schema_name is defined -%}
+                {{ op.request_body_schema_name | to_snake_case }}:
+                    JsonOf<{{ op.request_body_schema_name }}>,
+            {% endif -%}
+
+            {# query parameters -#}
+            {# hack: ignore query params on POST -#}
+            {# we have some, but they're all special-cased in the client libs -#}
+            {% if has_query_params and op.method != "post" %}
+            #[clap(flatten)]
+            options: {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options,
+            {% endif -%}
+
+            {# PostOptions -#}
+            {% if has_header_params -%}
+                {# for now, only idempotency-key is supported for the header -#}
+                #[clap(flatten)]
+                post_options: Option<PostOptions>,
+            {%- endif %}
+        },
+    {% endfor %}
+}
+
+impl {{ resource_type_name }}Commands {
+    pub async fn exec(self, client: &svix::api::Svix, color_mode: ColorMode) -> anyhow::Result<()> {
+        match self {
+            {% for op in resource.operations -%}
+                {% set has_query_params = op.query_params | length > 0 -%}
+                {% set has_header_params = op.header_params | length > 0 -%}
+
+                Self::{{ op.name | to_upper_camel_case }} {
+                    {# path parameters -#}
+                    {% for p in op.path_params -%}
+                        {% if p == resource_id_name -%}
+                            id,
+                        {% else -%}
+                            {{ p }},
+                        {% endif -%}
+                    {% endfor -%}
+
+                    {# body parameter struct -#}
+                    {% if op.request_body_schema_name is defined -%}
+                        {{ op.request_body_schema_name | to_snake_case }},
+                    {% endif -%}
+
+                    {# query parameters -#}
+                    {% if has_query_params and op.method != "post" %}options,{% endif -%}
+
+                    {# post_options -#}
+                    {% if has_header_params %}post_options,{% endif %}
+                } => {
+                    {% if op.response_body_schema_name is defined -%}
+                        let resp =
+                    {% endif -%}
+
+                    client
+                        .{{ resource_snake_case }}()
+                        .{{ op.name | to_snake_case }}(
+                            {# path parameters -#}
+                            {% for p in op.path_params -%}
+                                {% if p == resource_id_name -%}
+                                    id,
+                                {% else -%}
+                                    {{ p }},
+                                {% endif -%}
+                            {% endfor -%}
+
+                            {# body parameter struct -#}
+                            {% if op.request_body_schema_name is defined -%}
+                                {{ op.request_body_schema_name | to_snake_case }}.into_inner(),
+                            {% endif -%}
+
+                            {# query parameters -#}
+                            {% if has_query_params and op.method != "post" %}
+                                {% set has_required_query_params =
+                                    op.query_params | selectattr("required") | length > 0 -%}
+                                {%- if has_required_query_params -%}
+                                    Some(options.into()),
+                                {% else -%}
+                                    options.into(),
+                                {% endif -%}
+                            {% endif -%}
+
+                            {# post_options -#}
+                            {% if has_header_params %}post_options.map(Into::into),{% endif %}
+                        )
+                        .await?;
+
+                    {%- if op.response_body_schema_name is defined %}
+                        crate::json::print_json_output(&resp, color_mode)?;
+                    {%- endif %}
+                }
+            {% endfor %}
+        }
+
+        Ok(())
+    }
+}
