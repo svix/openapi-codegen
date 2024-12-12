@@ -96,17 +96,21 @@ impl Api {
         let minijinja_env = template::env()?;
         let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource")?;
         let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource")?;
+        let cli_types_tpl = minijinja_env.get_template("svix_cli_types")?;
 
         let api_dir = output_dir.join("api");
-        let cli_dir = output_dir.join("cli");
+        let cli_api_dir = output_dir.join("cli_api");
+        let cli_types_dir = output_dir.join("cli_types");
         fs::create_dir(&api_dir)?;
-        fs::create_dir(&cli_dir)?;
+        fs::create_dir(&cli_api_dir)?;
+        fs::create_dir(&cli_types_dir)?;
 
         for (name, resource) in self.resources {
             let filename = format!("{}.rs", name.to_snake_case());
             let ctx = context! { resource => resource };
             write_rust(&api_dir.join(&filename), &lib_resource_tpl, &ctx)?;
-            write_rust(&cli_dir.join(&filename), &cli_resource_tpl, &ctx)?;
+            write_rust(&cli_api_dir.join(&filename), &cli_resource_tpl, &ctx)?;
+            write_rust(&cli_types_dir.join(&filename), &cli_types_tpl, &ctx)?;
         }
 
         Ok(())

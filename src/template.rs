@@ -28,6 +28,10 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
         "svix_cli_resource",
         include_str!("../templates/svix_cli_resource.rs.jinja"),
     )?;
+    env.add_template(
+        "svix_cli_types",
+        include_str!("../templates/svix_cli_types.rs.jinja"),
+    )?;
 
     Ok(env)
 }
