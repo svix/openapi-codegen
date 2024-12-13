@@ -78,6 +78,18 @@ impl FieldType {
         })
     }
 
+    fn to_js_typename(&self) -> Cow<'_, str> {
+        match self {
+            Self::Bool => "boolean".into(),
+            Self::UInt64 => "number".into(),
+            Self::String => "string".into(),
+            // FIXME: Check what we actually need
+            Self::DateTime => "string".into(),
+            Self::Set(field_type) => format!("[{}]", field_type.to_js_typename()).into(),
+            Self::SchemaRef(name) => name.clone().into(),
+        }
+    }
+
     fn to_rust_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
@@ -105,6 +117,10 @@ impl minijinja::value::Object for FieldType {
         args: &[minijinja::Value],
     ) -> Result<minijinja::Value, minijinja::Error> {
         match method {
+            "to_js" => {
+                ensure_no_args(args, "to_js")?;
+                Ok(self.to_js_typename().into())
+            }
             "to_rust" => {
                 ensure_no_args(args, "to_rust")?;
                 Ok(self.to_rust_typename().into())
