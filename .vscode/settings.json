@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "*.ts.jinja": "jinja-js",
+        // jinja-js is kind of broken, for instance
+        // it doesn't highlight {# comments #}
+        "*.ts.jinja": "jinja",
     }
 }
