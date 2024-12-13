@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
+use heck::{ToLowerCamelCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
 use itertools::Itertools as _;
 use minijinja::value::Kwargs;
 
@@ -17,6 +17,9 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
 
     // Custom filters
     env.add_filter("to_snake_case", |s: Cow<'_, str>| s.to_snake_case());
+    env.add_filter("to_lower_camel_case", |s: Cow<'_, str>| {
+        s.to_lower_camel_case()
+    });
     env.add_filter("to_upper_camel_case", |s: Cow<'_, str>| {
         s.to_upper_camel_case()
     });
