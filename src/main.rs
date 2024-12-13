@@ -23,14 +23,21 @@ struct CliArgs {
 
 #[derive(Clone, Subcommand)]
 enum Command {
-    Generate { input_file: String },
+    Generate {
+        input_file: String,
+        #[clap(long)]
+        no_format: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_writer(io::stderr).init();
 
     let args = CliArgs::parse();
-    let Command::Generate { input_file } = args.command;
+    let Command::Generate {
+        input_file,
+        no_format,
+    } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
@@ -52,7 +59,7 @@ fn main() -> anyhow::Result<()> {
             writeln!(types_file, "{types:#?}")?;
         }
 
-        api.write_rust_stuff(&output_dir)?;
+        api.write_rust_stuff(&output_dir, no_format)?;
     }
 
     // if everything has succeeded, keep the tempdir for further use

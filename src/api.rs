@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::BufWriter,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use aide::openapi::{self, ReferenceOr};
@@ -85,7 +85,11 @@ impl Api {
         )
     }
 
-    pub(crate) fn write_rust_stuff(self, output_dir: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub(crate) fn write_rust_stuff(
+        self,
+        output_dir: impl AsRef<Path>,
+        no_format: bool,
+    ) -> anyhow::Result<()> {
         let output_dir = output_dir.as_ref();
 
         fs::write(
@@ -108,9 +112,11 @@ impl Api {
         for (name, resource) in self.resources {
             let filename = format!("{}.rs", name.to_snake_case());
             let ctx = context! { resource => resource };
-            write_rust(&api_dir.join(&filename), &lib_resource_tpl, &ctx)?;
-            write_rust(&cli_api_dir.join(&filename), &cli_resource_tpl, &ctx)?;
-            write_rust(&cli_types_dir.join(&filename), &cli_types_tpl, &ctx)?;
+            let do_write = |path: PathBuf, tpl| write_rust(&path, tpl, &ctx, no_format);
+
+            do_write(api_dir.join(&filename), &lib_resource_tpl)?;
+            do_write(cli_api_dir.join(&filename), &cli_resource_tpl)?;
+            do_write(cli_types_dir.join(&filename), &cli_types_tpl)?;
         }
 
         Ok(())
@@ -121,14 +127,17 @@ fn write_rust(
     path: &Path,
     tpl: &minijinja::Template<'_, '_>,
     ctx: impl Serialize,
+    no_format: bool,
 ) -> anyhow::Result<()> {
     let out_file = BufWriter::new(File::create(path)?);
     tpl.render_to_write(&ctx, out_file)?;
 
-    _ = std::process::Command::new("rustfmt")
-        .args(["+nightly", "--edition", "2021"])
-        .arg(path)
-        .status();
+    if !no_format {
+        _ = std::process::Command::new("rustfmt")
+            .args(["+nightly", "--edition", "2021"])
+            .arg(path)
+            .status();
+    }
 
     Ok(())
 }
