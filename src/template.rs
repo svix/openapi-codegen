@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
+use itertools::Itertools as _;
 use minijinja::value::Kwargs;
 
 pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error> {
@@ -19,7 +20,6 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
     env.add_filter("to_upper_camel_case", |s: Cow<'_, str>| {
         s.to_upper_camel_case()
     });
-    #[allow(clippy::format_collect)] // suggestion more efficient, but harder to read
     env.add_filter(
         "to_doc_comment",
         |s: Cow<'_, str>, kwargs: Kwargs| -> Result<String, minijinja::Error> {
@@ -36,7 +36,9 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
                 }
             };
 
-            Ok(s.lines().map(|line| format!("{prefix} {line}")).collect())
+            Ok(s.lines()
+                .format_with("\n", |line, f| f(&format_args!("{prefix} {line}")))
+                .to_string())
         },
     );
 
