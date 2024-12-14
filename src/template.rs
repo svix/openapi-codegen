@@ -2,10 +2,11 @@ use std::borrow::Cow;
 
 use heck::{ToLowerCamelCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
 use itertools::Itertools as _;
-use minijinja::value::Kwargs;
+use minijinja::{path_loader, value::Kwargs};
 
 pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
+    env.set_loader(path_loader("templates"));
 
     // Perfect for Rust, maybe good enough for other langs too?
     env.set_formatter(|out, _state, value| {
@@ -44,20 +45,6 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
                 .to_string())
         },
     );
-
-    // Templates
-    env.add_template(
-        "svix_lib_resource",
-        include_str!("../templates/svix_lib_resource.rs.jinja"),
-    )?;
-    env.add_template(
-        "svix_cli_resource",
-        include_str!("../templates/svix_cli_resource.rs.jinja"),
-    )?;
-    env.add_template(
-        "svix_cli_types",
-        include_str!("../templates/svix_cli_types.rs.jinja"),
-    )?;
 
     Ok(env)
 }

@@ -11,7 +11,7 @@ fs-err = "3.0.0"
 heck = "0.5.0"
 indexmap = "2.7.0"
 itertools = "0.13.0"
-minijinja = "2.5.0"
+minijinja = { version = "2.5.0", features = ["loader"] }
 schemars = "0.8.21"
 serde = "1.0.215"
 serde_json = "1.0.133"

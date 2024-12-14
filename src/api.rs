@@ -98,9 +98,9 @@ impl Api {
         )?;
 
         let minijinja_env = template::env()?;
-        let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource")?;
-        let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource")?;
-        let cli_types_tpl = minijinja_env.get_template("svix_cli_types")?;
+        let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource.rs.jinja")?;
+        let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource.rs.jinja")?;
+        let cli_types_tpl = minijinja_env.get_template("svix_cli_types.rs.jinja")?;
 
         let api_dir = output_dir.join("api");
         let cli_api_dir = output_dir.join("cli_api");
