@@ -8,14 +8,6 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
     let mut env = minijinja::Environment::new();
     env.set_loader(path_loader("templates"));
 
-    // Perfect for Rust, maybe good enough for other langs too?
-    env.set_formatter(|out, _state, value| {
-        // FIXME: Is this a good idea?
-        let s = value.to_string();
-        write!(out, "{}", s.escape_default())?;
-        Ok(())
-    });
-
     // Custom filters
     env.add_filter("to_snake_case", |s: Cow<'_, str>| s.to_snake_case());
     env.add_filter("to_lower_camel_case", |s: Cow<'_, str>| {

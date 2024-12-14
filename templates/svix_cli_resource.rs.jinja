@@ -25,7 +25,7 @@ pub enum {{ resource_type_name }}Commands {
         {% set has_header_params = op.header_params | length > 0 -%}
 
         {% if op.description is defined -%}
-            #[doc = " {{ op.description }}"]
+            {{ op.description | to_doc_comment(style="rust") }}
         {% endif -%}
         {{ op.name | to_upper_camel_case }} {
             {# path parameters -#}

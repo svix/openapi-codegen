@@ -92,11 +92,6 @@ impl Api {
     ) -> anyhow::Result<()> {
         let output_dir = output_dir.as_ref();
 
-        fs::write(
-            output_dir.join(".rustfmt.toml"),
-            include_str!("../.rustfmt.toml"),
-        )?;
-
         let minijinja_env = template::env()?;
         let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource.rs.jinja")?;
         let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource.rs.jinja")?;

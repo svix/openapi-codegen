@@ -27,7 +27,7 @@ use crate::{
             {% endif -%}
             {% if not p.required %}{% set ty %}Option<{{ ty }}>{% endset %}{% endif %}
             {% if p.description is defined -%}
-                #[doc = " {{ p.description }}"]
+                {{ p.description | to_doc_comment(style="rust") }}
                 {# we currently use String for date-time params, for backwards compat -#}
                 {# document the format so it's not _that_ awkward -#}
                 {% if p.type.is_datetime() -%}
@@ -54,7 +54,7 @@ impl<'a> {{ resource_type_name }}<'a> {
     {% set has_query_params = op.query_params | length > 0 -%}
     {% set has_header_params = op.header_params | length > 0 -%}
     {% if op.description is defined -%}
-        #[doc = " {{ op.description }}"]
+        {{ op.description | to_doc_comment(style="rust") }}
     {% endif -%}
     pub async fn {{ op.name | to_snake_case }}(
         &self,
