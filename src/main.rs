@@ -27,6 +27,9 @@ enum Command {
         input_file: String,
         #[clap(long)]
         no_format: bool,
+        /// Generate code for deprecated operations, too.
+        #[clap(long)]
+        with_deprecated: bool,
     },
 }
 
@@ -37,6 +40,7 @@ fn main() -> anyhow::Result<()> {
     let Command::Generate {
         input_file,
         no_format,
+        with_deprecated,
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
@@ -47,7 +51,7 @@ fn main() -> anyhow::Result<()> {
     let mut components = spec.components.unwrap_or_default();
 
     if let Some(paths) = spec.paths {
-        let api = Api::new(paths).unwrap();
+        let api = Api::new(paths, with_deprecated).unwrap();
         {
             let mut api_file = BufWriter::new(File::create("api.ron")?);
             writeln!(api_file, "{api:#?}")?;

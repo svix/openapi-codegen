@@ -28,7 +28,7 @@ pub(crate) struct Api {
 }
 
 impl Api {
-    pub(crate) fn new(paths: openapi::Paths) -> anyhow::Result<Self> {
+    pub(crate) fn new(paths: openapi::Paths, with_deprecated: bool) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
         for (path, pi) in paths {
@@ -42,6 +42,10 @@ impl Api {
             }
 
             for (method, op) in path_item {
+                if !with_deprecated && op.deprecated {
+                    continue;
+                }
+
                 if let Some((res_name, op)) = Operation::from_openapi(&path, method, op) {
                     let resource = resources
                         .entry(res_name.clone())
