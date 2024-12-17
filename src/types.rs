@@ -9,6 +9,7 @@ use crate::util::get_schema_name;
 /// Named types referenced by the [`Api`].
 ///
 /// Intermediate representation of (some) `components` from the spec.
+#[allow(dead_code)] // FIXME: Remove when we generate "model" files
 #[derive(Debug)]
 pub(crate) struct Types(pub BTreeMap<String, SchemaObject>);
 

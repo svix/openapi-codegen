@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::io::{self, BufWriter, Write as _};
 
 use aide::openapi::OpenApi;
