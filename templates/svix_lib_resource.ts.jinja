@@ -17,7 +17,7 @@ import { PostOptions } from "../util";
             {{ p.description | to_doc_comment(style="js") }}
             {% set field_ty = p.type.to_js() -%}
             {% if p.name == "iterator" %}{% set field_ty = "string | null" %}{% endif -%}
-            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ field_ty }},
+            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ field_ty }};
         {% endfor -%}
     }
 
