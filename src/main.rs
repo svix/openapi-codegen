@@ -24,6 +24,7 @@ enum Command {
     /// Generate code from an OpenAPI spec.
     Generate {
         /// Path to the input file.
+        #[clap(short, long)]
         input_file: String,
         /// Disable automatic formatting of the output.
         #[clap(long)]
