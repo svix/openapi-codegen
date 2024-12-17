@@ -60,18 +60,7 @@ impl Api {
     fn referenced_components(&self) -> impl Iterator<Item = &str> {
         self.resources
             .values()
-            .flat_map(|resource| &resource.operations)
-            .flat_map(|operation| {
-                operation
-                    .query_params
-                    .iter()
-                    .filter_map(|p| match &p.r#type {
-                        FieldType::SchemaRef(r) => Some(r.as_str()),
-                        _ => None,
-                    })
-                    .chain(operation.request_body_schema_name.as_deref())
-                    .chain(operation.response_body_schema_name.as_deref())
-            })
+            .flat_map(Resource::referenced_components)
     }
 
     pub(crate) fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
@@ -118,7 +107,8 @@ impl Api {
 
         for (name, resource) in self.resources {
             let filename = format!("{}.{tpl_file_ext}", name.to_snake_case());
-            let ctx = context! { resource => resource };
+            let referenced_components = resource.referenced_components().collect::<BTreeSet<_>>();
+            let ctx = context! { resource, referenced_components };
 
             let file_path = output_dir.join(filename);
             let out_file = BufWriter::new(File::create(&file_path)?);
@@ -156,6 +146,20 @@ impl Resource {
             name,
             operations: Vec::new(),
         }
+    }
+
+    fn referenced_components(&self) -> impl Iterator<Item = &str> {
+        self.operations.iter().flat_map(|operation| {
+            operation
+                .query_params
+                .iter()
+                .filter_map(|p| match &p.r#type {
+                    FieldType::SchemaRef(r) => Some(r.as_str()),
+                    _ => None,
+                })
+                .chain(operation.request_body_schema_name.as_deref())
+                .chain(operation.response_body_schema_name.as_deref())
+        })
     }
 }
 
