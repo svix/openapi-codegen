@@ -84,8 +84,7 @@ impl FieldType {
             Self::Bool => "boolean".into(),
             Self::UInt64 => "number".into(),
             Self::String => "string".into(),
-            // FIXME: Check what we actually need
-            Self::DateTime => "string".into(),
+            Self::DateTime => "Date | null".into(),
             Self::Set(field_type) => format!("{}[]", field_type.to_js_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),
         }
