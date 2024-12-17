@@ -15,7 +15,7 @@ import { PostOptions } from "../util";
     export interface {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {{ p.description | to_doc_comment(style="js") }}
-            {{ p.name }}{% if p.required %}?{% endif %}: {{ p.type.to_js() }},
+            {{ p.name | to_lower_camel_case }}{% if p.required %}?{% endif %}: {{ p.type.to_js() }},
         {% endfor -%}
     }
 
@@ -30,6 +30,7 @@ export class {{ resource_type_name }} {
     }
 
     {% for op in resource.operations -%}
+        {% set has_query_params = op.query_params | length > 0 -%}
         {% set has_required_query_params =
             op.query_params | selectattr("required") | length > 0 -%}
         {% set has_header_params = op.header_params | length > 0 -%}
