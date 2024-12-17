@@ -86,7 +86,7 @@ impl FieldType {
             Self::String => "string".into(),
             // FIXME: Check what we actually need
             Self::DateTime => "string".into(),
-            Self::Set(field_type) => format!("[{}]", field_type.to_js_typename()).into(),
+            Self::Set(field_type) => format!("{}[]", field_type.to_js_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),
         }
     }
