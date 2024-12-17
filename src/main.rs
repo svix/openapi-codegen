@@ -21,8 +21,11 @@ struct CliArgs {
 
 #[derive(Clone, Subcommand)]
 enum Command {
+    /// Generate code from an OpenAPI spec.
     Generate {
+        /// Path to the input file.
         input_file: String,
+        /// Disable automatic formatting of the output.
         #[clap(long)]
         no_format: bool,
         /// Generate code for deprecated operations, too.
