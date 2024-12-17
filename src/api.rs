@@ -61,7 +61,17 @@ impl Api {
         self.resources
             .values()
             .flat_map(|resource| &resource.operations)
-            .filter_map(|operation| operation.request_body_schema_name.as_deref())
+            .flat_map(|operation| {
+                operation
+                    .query_params
+                    .iter()
+                    .filter_map(|p| match &p.r#type {
+                        FieldType::SchemaRef(r) => Some(r.as_str()),
+                        _ => None,
+                    })
+                    .chain(operation.request_body_schema_name.as_deref())
+                    .chain(operation.response_body_schema_name.as_deref())
+            })
     }
 
     pub(crate) fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
