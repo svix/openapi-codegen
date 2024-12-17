@@ -32,6 +32,7 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
 
             let prefix = match &*style {
                 "rust" | "javascript" | "js" | "ts" | "typescript" => "///",
+                "go" => "//",
                 _ => {
                     return Err(minijinja::Error::new(
                         minijinja::ErrorKind::UndefinedError,

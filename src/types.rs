@@ -79,6 +79,18 @@ impl FieldType {
         })
     }
 
+    fn to_go_typename(&self) -> Cow<'_, str> {
+        match self {
+            FieldType::Bool => "bool".into(),
+            // FIXME: Looks like all integers are currently i32
+            FieldType::UInt64 => "int32".into(),
+            FieldType::String => "string".into(),
+            FieldType::DateTime => "time.Time".into(),
+            FieldType::Set(field_type) => format!("[]{}", field_type.to_go_typename()).into(),
+            FieldType::SchemaRef(name) => name.clone().into(),
+        }
+    }
+
     fn to_js_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "boolean".into(),
@@ -117,6 +129,10 @@ impl minijinja::value::Object for FieldType {
         args: &[minijinja::Value],
     ) -> Result<minijinja::Value, minijinja::Error> {
         match method {
+            "to_go" => {
+                ensure_no_args(args, "to_go")?;
+                Ok(self.to_go_typename().into())
+            }
             "to_js" => {
                 ensure_no_args(args, "to_js")?;
                 Ok(self.to_js_typename().into())
