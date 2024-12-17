@@ -46,7 +46,7 @@ export class {{ resource_type_name }} {
             {% if op.request_body_schema_name is defined -%}
                 {% set field_name = op.request_body_schema_name | to_lower_camel_case -%}
                 {{ field_name }}: {{ op.request_body_schema_name }},
-            {% endif %}
+            {% endif -%}
 
             {# query parameters -#}
             {# hack: ignore query params on POST -#}
@@ -62,7 +62,7 @@ export class {{ resource_type_name }} {
             {% if has_header_params -%}
                 {# for now, only idempotency-key is supported in header params -#}
                 options?: PostOptions,
-            {% endif %}
+            {% endif -%}
         ): Promise<{{ response_type }}> {
             return this.api.{{ op.id | to_lower_camel_case }}({
                 {# path parameters -#}
@@ -73,7 +73,7 @@ export class {{ resource_type_name }} {
                 {# body parameter interface -#}
                 {% if op.request_body_schema_name is defined -%}
                     {{ op.request_body_schema_name | to_lower_camel_case }},
-                {% endif %}
+                {% endif -%}
 
                 {# query parameters, PostOptions -#}
                 {% if has_query_params and op.method != "post" or has_header_params -%}
@@ -86,7 +86,6 @@ export class {{ resource_type_name }} {
                     {% endfor -%}
                 {% endif -%}
             });
-        }
-
+        }{% if not loop.last %}{{ "\n" }}{% endif %}
     {% endfor -%}
 }
