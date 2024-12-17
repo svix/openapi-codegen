@@ -7,7 +7,7 @@ use std::{
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
 use fs_err::File;
-use heck::ToSnakeCase as _;
+use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use indexmap::IndexMap;
 use minijinja::context;
 use schemars::schema::{InstanceType, Schema};
@@ -106,11 +106,15 @@ impl Api {
         let tpl = minijinja_env.get_template(template_name)?;
 
         for (name, resource) in self.resources {
-            let filename = format!("{}.{tpl_file_ext}", name.to_snake_case());
+            let basename = match tpl_file_ext {
+                "cs" | "java" | "kotlin" => name.to_upper_camel_case(),
+                _ => name.to_snake_case(),
+            };
+
             let referenced_components = resource.referenced_components().collect::<BTreeSet<_>>();
             let ctx = context! { resource, referenced_components };
 
-            let file_path = output_dir.join(filename);
+            let file_path = output_dir.join(format!("{basename}.{tpl_file_ext}"));
             let out_file = BufWriter::new(File::create(&file_path)?);
             tpl.render_to_write(ctx, out_file)?;
 
