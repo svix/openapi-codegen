@@ -15,7 +15,7 @@ import { PostOptions } from "../util";
     export interface {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {{ p.description | to_doc_comment(style="js") }}
-            {{ p.name | to_lower_camel_case }}{% if p.required %}?{% endif %}: {{ p.type.to_js() }},
+            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ p.type.to_js() }},
         {% endfor -%}
     }
 
