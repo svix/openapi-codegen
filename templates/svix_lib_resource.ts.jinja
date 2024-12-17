@@ -15,7 +15,9 @@ import { PostOptions } from "../util";
     export interface {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
             {{ p.description | to_doc_comment(style="js") }}
-            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ p.type.to_js() }},
+            {% set field_ty = p.type.to_js() -%}
+            {% if p.name == "iterator" %}{% set field_ty = "string | null" %}{% endif -%}
+            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ field_ty }},
         {% endfor -%}
     }
 
