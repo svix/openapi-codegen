@@ -1,17 +1,16 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::BufWriter,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
-use fs_err::{self as fs, File};
+use fs_err::File;
 use heck::ToSnakeCase as _;
 use indexmap::IndexMap;
 use minijinja::context;
 use schemars::schema::{InstanceType, Schema};
-use serde::Serialize;
 
 use crate::{
     template,
@@ -89,56 +88,48 @@ impl Api {
         )
     }
 
-    pub(crate) fn write_rust_stuff(
+    pub(crate) fn generate(
         self,
+        template_name: &str,
         output_dir: impl AsRef<Path>,
         no_format: bool,
     ) -> anyhow::Result<()> {
         let output_dir = output_dir.as_ref();
 
-        let minijinja_env = template::env()?;
-        let lib_resource_tpl = minijinja_env.get_template("svix_lib_resource.rs.jinja")?;
-        let cli_resource_tpl = minijinja_env.get_template("svix_cli_resource.rs.jinja")?;
-        let cli_types_tpl = minijinja_env.get_template("svix_cli_types.rs.jinja")?;
+        // Use the second `.`-separated segment of the filename, so for
+        // `foo.rs.jinja` this get us `rs`, not `jinja`.
+        let tpl_file_ext = template_name
+            .split('.')
+            .nth(1)
+            .context("template must have a file extension")?;
 
-        let api_dir = output_dir.join("api");
-        let cli_api_dir = output_dir.join("cli_api");
-        let cli_types_dir = output_dir.join("cli_types");
-        fs::create_dir(&api_dir)?;
-        fs::create_dir(&cli_api_dir)?;
-        fs::create_dir(&cli_types_dir)?;
+        let minijinja_env = template::env()?;
+        let tpl = minijinja_env.get_template(template_name)?;
 
         for (name, resource) in self.resources {
-            let filename = format!("{}.rs", name.to_snake_case());
+            let filename = format!("{}.{tpl_file_ext}", name.to_snake_case());
             let ctx = context! { resource => resource };
-            let do_write = |path: PathBuf, tpl| write_rust(&path, tpl, &ctx, no_format);
 
-            do_write(api_dir.join(&filename), &lib_resource_tpl)?;
-            do_write(cli_api_dir.join(&filename), &cli_resource_tpl)?;
-            do_write(cli_types_dir.join(&filename), &cli_types_tpl)?;
+            let file_path = output_dir.join(filename);
+            let out_file = BufWriter::new(File::create(&file_path)?);
+            tpl.render_to_write(ctx, out_file)?;
+
+            if !no_format {
+                run_formatter(&file_path, tpl_file_ext);
+            }
         }
 
         Ok(())
     }
 }
 
-fn write_rust(
-    path: &Path,
-    tpl: &minijinja::Template<'_, '_>,
-    ctx: impl Serialize,
-    no_format: bool,
-) -> anyhow::Result<()> {
-    let out_file = BufWriter::new(File::create(path)?);
-    tpl.render_to_write(&ctx, out_file)?;
-
-    if !no_format {
+fn run_formatter(path: &Path, file_ext: &str) {
+    if file_ext == "rs" {
         _ = std::process::Command::new("rustfmt")
             .args(["+nightly", "--edition", "2021"])
             .arg(path)
             .status();
     }
-
-    Ok(())
 }
 
 /// A named group of [`Operation`]s.

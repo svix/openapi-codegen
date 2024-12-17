@@ -23,12 +23,18 @@ struct CliArgs {
 enum Command {
     /// Generate code from an OpenAPI spec.
     Generate {
+        /// The template to use (`.jinja` extension can be omitted).
+        #[clap(short, long)]
+        template: String,
+
         /// Path to the input file.
         #[clap(short, long)]
         input_file: String,
+
         /// Disable automatic formatting of the output.
         #[clap(long)]
         no_format: bool,
+
         /// Generate code for deprecated operations, too.
         #[clap(long)]
         with_deprecated: bool,
@@ -40,6 +46,7 @@ fn main() -> anyhow::Result<()> {
 
     let args = CliArgs::parse();
     let Command::Generate {
+        template,
         input_file,
         no_format,
         with_deprecated,
@@ -65,7 +72,7 @@ fn main() -> anyhow::Result<()> {
             writeln!(types_file, "{types:#?}")?;
         }
 
-        api.write_rust_stuff(&output_dir, no_format)?;
+        api.generate(&template, &output_dir, no_format)?;
     }
 
     // if everything has succeeded, keep the tempdir for further use
