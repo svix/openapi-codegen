@@ -1,11 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::BufWriter,
-    path::Path,
 };
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
+use camino::Utf8Path;
 use fs_err::File;
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use indexmap::IndexMap;
@@ -15,7 +15,7 @@ use schemars::schema::{InstanceType, Schema};
 use crate::{
     template,
     types::{FieldType, Types},
-    util::get_schema_name,
+    util::{get_schema_name, run_formatter},
 };
 
 /// The API we generate a client for.
@@ -90,11 +90,9 @@ impl Api {
     pub(crate) fn generate(
         self,
         template_name: &str,
-        output_dir: impl AsRef<Path>,
+        output_dir: &Utf8Path,
         no_format: bool,
     ) -> anyhow::Result<()> {
-        let output_dir = output_dir.as_ref();
-
         // Use the second `.`-separated segment of the filename, so for
         // `foo.rs.jinja` this get us `rs`, not `jinja`.
         let tpl_file_ext = template_name
@@ -119,20 +117,11 @@ impl Api {
             tpl.render_to_write(ctx, out_file)?;
 
             if !no_format {
-                run_formatter(&file_path, tpl_file_ext);
+                run_formatter(&file_path);
             }
         }
 
         Ok(())
-    }
-}
-
-fn run_formatter(path: &Path, file_ext: &str) {
-    if file_ext == "rs" {
-        _ = std::process::Command::new("rustfmt")
-            .args(["+nightly", "--edition", "2021"])
-            .arg(path)
-            .status();
     }
 }
 

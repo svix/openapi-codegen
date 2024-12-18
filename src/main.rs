@@ -72,7 +72,14 @@ fn main() -> anyhow::Result<()> {
             writeln!(types_file, "{types:#?}")?;
         }
 
-        api.generate(&template, &output_dir, no_format)?;
+        api.generate(
+            &template,
+            output_dir
+                .path()
+                .try_into()
+                .context("non-UTF8 tempdir path")?,
+            no_format,
+        )?;
     }
 
     // if everything has succeeded, keep the tempdir for further use
