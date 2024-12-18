@@ -242,6 +242,10 @@ impl Operation {
                     parameter_data,
                     style: openapi::HeaderStyle::Simple,
                 }) => {
+                    if parameter_data.name != "idempotency-key" {
+                        tracing::warn!(name = parameter_data.name, "unknown header parameter");
+                    }
+
                     if let Err(e) = enforce_string_parameter(&parameter_data) {
                         tracing::warn!("unsupported header parameter: {e}");
                         return None;
