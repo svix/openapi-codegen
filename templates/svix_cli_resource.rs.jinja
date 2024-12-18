@@ -47,9 +47,7 @@ pub enum {{ resource_type_name }}Commands {
             {% endif -%}
 
             {# query parameters -#}
-            {# hack: ignore query params on POST -#}
-            {# we have some, but they're all special-cased in the client libs -#}
-            {% if has_query_params and op.method != "post" %}
+            {% if has_query_params %}
             #[clap(flatten)]
             options: {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options,
             {% endif -%}

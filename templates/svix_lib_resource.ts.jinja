@@ -54,9 +54,7 @@ export class {{ resource_type_name }} {
             {% endif -%}
 
             {# query parameters -#}
-            {# hack: ignore query params on POST -#}
-            {# we have some, but they're all special-cased in the client libs -#}
-            {% if has_query_params and op.method != "post" -%}
+            {% if has_query_params  -%}
                 {% set field_ty -%}
                     {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
                 {%- endset -%}
@@ -81,7 +79,7 @@ export class {{ resource_type_name }} {
                 {% endif -%}
 
                 {# query parameters, PostOptions -#}
-                {% if has_query_params and op.method != "post" or has_header_params -%}
+                {% if has_query_params or has_header_params -%}
                     ...options,
                     {# HACK: if there is an iterator query param and it's null, coerce to undefined -#}
                     {% for p in op.query_params -%}

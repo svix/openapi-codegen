@@ -5,9 +5,7 @@ use clap::Args;
 use svix::api;
 
 {% for op in resource.operations -%}
-    {# hack: ignore query params on POST -#}
-    {# we have some, but they're all special-cased in the client libs -#}
-    {% if op.query_params | length > 0 and op.post != "post" -%}
+    {% if op.query_params | length > 0 -%}
         {% set query_param_type_name -%}
             {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
         {%- endset -%}

@@ -263,6 +263,11 @@ impl Operation {
                     allow_empty_value: None,
                 }) => {
                     let name = parameter_data.name;
+                    if method == "post" && name == "get_if_exists" {
+                        tracing::debug!("ignoring get_if_exists query parameter");
+                        continue;
+                    }
+
                     let _guard = tracing::info_span!("field_type_from_openapi", name).entered();
                     let r#type = match FieldType::from_openapi(parameter_data.format) {
                         Ok(t) => t,
