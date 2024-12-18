@@ -1,14 +1,17 @@
-use clap::{Args, Subcommand};
-use colored_json::ColorMode;
-
-use crate::{cli_types::PostOptions, json::JsonOf};
-
 {% set resource_snake_case = resource.name | to_snake_case -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 {% set resource_id_name %}{{ resource_snake_case }}_id{% endset -%}
 {% if resource.name == "application" %}{% set resource_id_name = "app_id" %}{% endif -%}
 {% if resource.name == "message" %}{% set resource_id_name = "msg_id" %}{% endif -%}
 {% if resource.name == "integration" %}{% set resource_id_name = "integ_id" %}{% endif -%}
+
+use clap::{Args, Subcommand};
+use colored_json::ColorMode;
+
+{% if resource.has_post_operation -%}
+use crate::cli_types::PostOptions;
+{% endif -%}
+use crate::json::JsonOf;
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]

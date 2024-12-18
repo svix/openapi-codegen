@@ -8,7 +8,9 @@ import {
         {{ c | to_upper_camel_case }},
     {% endfor -%}
 } from "../openapi";
+{% if resource.has_post_operation -%}
 import { PostOptions } from "../util";
+{% endif -%}
 
 {% for op in resource.operations -%}
     {% if op.query_params | length > 0 -%}
