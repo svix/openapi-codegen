@@ -8,6 +8,7 @@ aide = "0.13.4"
 anyhow = "1.0.94"
 camino = "1.1.9"
 clap = { version = "4.5.23", features = ["derive"] }
+derive_more = { version = "1.0.0", features = ["debug"] }
 fs-err = "3.0.0"
 heck = "0.5.0"
 indexmap = "2.7.0"

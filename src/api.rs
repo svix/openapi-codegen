@@ -6,6 +6,7 @@ use std::{
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
 use camino::Utf8Path;
+use derive_more::Debug;
 use fs_err::File;
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use indexmap::IndexMap;
@@ -49,6 +50,9 @@ impl Api {
                     let resource = resources
                         .entry(res_name.clone())
                         .or_insert_with(|| Resource::new(res_name));
+                    if op.method == "post" {
+                        resource.has_post_operation = true;
+                    }
                     resource.operations.push(op);
                 }
             }
@@ -130,6 +134,8 @@ impl Api {
 struct Resource {
     name: String,
     operations: Vec<Operation>,
+    #[debug(skip)] // redundant, but convenient in templates
+    has_post_operation: bool,
     // TODO: subresources?
 }
 
@@ -138,6 +144,7 @@ impl Resource {
         Self {
             name,
             operations: Vec::new(),
+            has_post_operation: false,
         }
     }
 
