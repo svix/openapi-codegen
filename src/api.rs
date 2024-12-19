@@ -46,10 +46,8 @@ impl Api {
                     continue;
                 }
 
-                if let Some((res_name, op)) = Operation::from_openapi(&path, method, op) {
-                    let resource = resources
-                        .entry(res_name.clone())
-                        .or_insert_with(|| Resource::new(res_name));
+                if let Some((res_path, op)) = Operation::from_openapi(&path, method, op) {
+                    let resource = get_or_insert_resource(&mut resources, res_path);
                     if op.method == "post" {
                         resource.has_post_operation = true;
                     }
@@ -129,14 +127,34 @@ impl Api {
     }
 }
 
+fn get_or_insert_resource(
+    resources: &mut BTreeMap<String, Resource>,
+    path: Vec<String>,
+) -> &mut Resource {
+    let mut path_iter = path.into_iter();
+    let l1_name = path_iter.next().expect("path must be non-empty");
+    let mut r = resources
+        .entry(l1_name.clone())
+        .or_insert_with(|| Resource::new(l1_name));
+
+    for name in path_iter {
+        r = r
+            .subresources
+            .entry(name.clone())
+            .or_insert_with(|| Resource::new(name));
+    }
+
+    r
+}
+
 /// A named group of [`Operation`]s.
 #[derive(Debug, serde::Serialize)]
 struct Resource {
     name: String,
     operations: Vec<Operation>,
+    subresources: BTreeMap<String, Resource>,
     #[debug(skip)] // redundant, but convenient in templates
     has_post_operation: bool,
-    // TODO: subresources?
 }
 
 impl Resource {
@@ -144,6 +162,7 @@ impl Resource {
         Self {
             name,
             operations: Vec::new(),
+            subresources: BTreeMap::new(),
             has_post_operation: false,
         }
     }
@@ -201,16 +220,36 @@ struct Operation {
 
 impl Operation {
     #[tracing::instrument(name = "operation_from_openapi", skip(op), fields(op_id))]
-    fn from_openapi(path: &str, method: &str, op: openapi::Operation) -> Option<(String, Self)> {
+    fn from_openapi(
+        path: &str,
+        method: &str,
+        op: openapi::Operation,
+    ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
             return None;
         };
-        let op_id_parts: Vec<_> = op_id.split(".").collect();
-        let Ok([version, res_name, op_name]): Result<[_; 3], _> = op_id_parts.try_into() else {
-            tracing::debug!(op_id, "skipping operation whose ID does not have two dots");
+        let mut op_id_parts_iter = op_id.split('.');
+        let version = op_id_parts_iter
+            .next()
+            .expect("split iter always contains at least one item");
+        let Some(op_name) = op_id_parts_iter.next_back() else {
+            tracing::debug!(
+                op_id,
+                "skipping operation whose ID doesn't contain a period"
+            );
             return None;
         };
+
+        let res_path: Vec<_> = op_id_parts_iter.map(ToOwned::to_owned).collect();
+        if res_path.is_empty() {
+            tracing::debug!(
+                op_id,
+                "skipping operation whose ID only contains one period"
+            );
+            return None;
+        }
+
         if version != "v1" {
             tracing::warn!(op_id, "found operation whose ID does not begin with v1");
             return None;
@@ -354,9 +393,7 @@ impl Operation {
             schema_name
         });
 
-        let res_name = res_name.to_owned();
         let op_name = op_name.to_owned();
-
         let op = Operation {
             id: op_id,
             name: op_name,
@@ -370,7 +407,7 @@ impl Operation {
             request_body_schema_name,
             response_body_schema_name,
         };
-        Some((res_name, op))
+        Some((res_path, op))
     }
 }
 
