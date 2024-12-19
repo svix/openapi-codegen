@@ -1,3 +1,4 @@
+// this file is @generated
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 {% set api_type_name %}{{ resource_type_name }}Api{% endset -%}
 
@@ -81,10 +82,10 @@ export class {{ resource_type_name }} {
                 {# query parameters, PostOptions -#}
                 {% if has_query_params or has_header_params -%}
                     ...options,
-                    {# HACK: if there is an iterator query param and it's null, coerce to undefined -#}
+                    {# HACK: coerce some null query params to undefined -#}
                     {% for p in op.query_params -%}
-                        {% if p.name == "iterator" -%}
-                            iterator: options?.iterator ?? undefined,
+                        {% if p.name == "iterator" or p.name == "after" or p.name == "before" -%}
+                            {{ p.name }}: options?.{{ p.name }} ?? undefined,
                         {% endif -%}
                     {% endfor -%}
                 {% endif -%}
