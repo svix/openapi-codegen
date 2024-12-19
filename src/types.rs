@@ -81,13 +81,24 @@ impl FieldType {
 
     fn to_go_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::Bool => "bool".into(),
+            Self::Bool => "bool".into(),
             // FIXME: Looks like all integers are currently i32
-            FieldType::UInt64 => "int32".into(),
-            FieldType::String => "string".into(),
-            FieldType::DateTime => "time.Time".into(),
-            FieldType::Set(field_type) => format!("[]{}", field_type.to_go_typename()).into(),
-            FieldType::SchemaRef(name) => name.clone().into(),
+            Self::UInt64 => "int32".into(),
+            Self::String => "string".into(),
+            Self::DateTime => "time.Time".into(),
+            Self::Set(field_type) => format!("[]{}", field_type.to_go_typename()).into(),
+            Self::SchemaRef(name) => name.clone().into(),
+        }
+    }
+
+    fn to_kotlin_typename(&self) -> Cow<'_, str> {
+        match self {
+            Self::Bool => "Boolean".into(),
+            Self::UInt64 => "Long".into(),
+            Self::String => "String".into(),
+            Self::DateTime => "OffsetDateTime".into(),
+            Self::Set(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
+            Self::SchemaRef(name) => name.clone().into(),
         }
     }
 
@@ -136,6 +147,10 @@ impl minijinja::value::Object for FieldType {
             "to_js" => {
                 ensure_no_args(args, "to_js")?;
                 Ok(self.to_js_typename().into())
+            }
+            "to_kotlin" => {
+                ensure_no_args(args, "to_kotlin")?;
+                Ok(self.to_kotlin_typename().into())
             }
             "to_rust" => {
                 ensure_no_args(args, "to_rust")?;
