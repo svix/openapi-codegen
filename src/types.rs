@@ -79,6 +79,18 @@ impl FieldType {
         })
     }
 
+    fn to_csharp_typename(&self) -> Cow<'_, str> {
+        match self {
+            Self::Bool => "bool".into(),
+            // FIXME: For backwards compatibility. Should be 'long'.
+            Self::UInt64 => "int".into(),
+            Self::String => "string".into(),
+            Self::DateTime => "DateTime".into(),
+            Self::Set(field_type) => format!("List<{}>", field_type.to_csharp_typename()).into(),
+            Self::SchemaRef(name) => name.clone().into(),
+        }
+    }
+
     fn to_go_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
@@ -140,6 +152,10 @@ impl minijinja::value::Object for FieldType {
         args: &[minijinja::Value],
     ) -> Result<minijinja::Value, minijinja::Error> {
         match method {
+            "to_csharp" => {
+                ensure_no_args(args, "to_csharp")?;
+                Ok(self.to_csharp_typename().into())
+            }
             "to_go" => {
                 ensure_no_args(args, "to_go")?;
                 Ok(self.to_go_typename().into())

@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.cs.jinja": "jinja",
         "*.go.jinja": "jinja",
         "*.kt.jinja": "jinja",
         // jinja-js is kind of broken, for instance
