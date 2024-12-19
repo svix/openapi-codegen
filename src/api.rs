@@ -111,7 +111,7 @@ impl Api {
                 _ => name.to_snake_case(),
             };
 
-            let referenced_components = resource.referenced_components().collect::<BTreeSet<_>>();
+            let referenced_components = resource.referenced_components();
             let ctx = context! { resource, referenced_components };
 
             let file_path = output_dir.join(format!("{basename}.{tpl_file_ext}"));
@@ -167,18 +167,28 @@ impl Resource {
         }
     }
 
-    fn referenced_components(&self) -> impl Iterator<Item = &str> {
-        self.operations.iter().flat_map(|operation| {
-            operation
-                .query_params
-                .iter()
-                .filter_map(|p| match &p.r#type {
-                    FieldType::SchemaRef(r) => Some(r.as_str()),
-                    _ => None,
-                })
-                .chain(operation.request_body_schema_name.as_deref())
-                .chain(operation.response_body_schema_name.as_deref())
-        })
+    fn referenced_components(&self) -> BTreeSet<&str> {
+        let mut res = BTreeSet::new();
+
+        for resource in self.subresources.values() {
+            res.extend(resource.referenced_components());
+        }
+
+        for operation in &self.operations {
+            for param in &operation.query_params {
+                if let FieldType::SchemaRef(name) = &param.r#type {
+                    res.insert(name);
+                }
+            }
+            if let Some(name) = &operation.request_body_schema_name {
+                res.insert(name);
+            }
+            if let Some(name) = &operation.response_body_schema_name {
+                res.insert(name);
+            }
+        }
+
+        res
     }
 }
 
