@@ -31,7 +31,16 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
             kwargs.assert_all_used()?;
 
             let prefix = match &*style {
-                "rust" | "javascript" | "js" | "ts" | "typescript" => "///",
+                "javascript" | "js" | "ts" | "typescript" => {
+                    if !s.contains("\n") {
+                        return Ok(format!("/** {s} */"));
+                    }
+                    let lines = s
+                        .lines()
+                        .format_with("\n", |line, f| f(&format_args!("* {line}")));
+                    return Ok(format!("/**\n{lines}\n*/"));
+                }
+                "rust" => "///",
                 "go" => "//",
                 _ => {
                     return Err(minijinja::Error::new(
