@@ -107,7 +107,7 @@ impl Api {
 
         for (name, resource) in self.resources {
             let basename = match tpl_file_ext {
-                "cs" | "java" | "kotlin" => name.to_upper_camel_case(),
+                "cs" | "java" | "kt" => name.to_upper_camel_case(),
                 _ => name.to_snake_case(),
             };
 

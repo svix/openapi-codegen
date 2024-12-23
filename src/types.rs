@@ -106,7 +106,8 @@ impl FieldType {
     fn to_kotlin_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "Boolean".into(),
-            Self::UInt64 => "Long".into(),
+            // FIXME: Should be Long..
+            Self::UInt64 => "Int".into(),
             Self::String => "String".into(),
             Self::DateTime => "OffsetDateTime".into(),
             Self::Set(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
