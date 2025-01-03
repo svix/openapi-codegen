@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # only save the cache on the main branch
+          # https://github.com/Swatinem/rust-cache/issues/95
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy -- -D warnings
+
+  typos:
+    name: Typos
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@v1.29.3
