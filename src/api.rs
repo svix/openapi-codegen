@@ -321,7 +321,7 @@ impl Operation {
                     let r#type = match FieldType::from_openapi(parameter_data.format) {
                         Ok(t) => t,
                         Err(e) => {
-                            tracing::warn!("unsupport query parameter type: {e}");
+                            tracing::warn!("unsupported query parameter type: {e}");
                             return None;
                         }
                     };
