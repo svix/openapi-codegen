@@ -5,13 +5,56 @@
 {% if resource.name == "message" %}{% set resource_id_name = "msg_id" %}{% endif -%}
 {% if resource.name == "integration" %}{% set resource_id_name = "integ_id" %}{% endif -%}
 
+use chrono::{DateTime, Utc};
 use clap::{Args, Subcommand};
-use colored_json::ColorMode;
+use svix::api::{self, Ordering};
 
 {% if resource.has_post_operation -%}
 use crate::cli_types::PostOptions;
 {% endif -%}
 use crate::json::JsonOf;
+
+{% for op in resource.operations -%}
+    {% if op.query_params | length > 0 -%}
+        {% set query_param_type_name -%}
+            {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
+        {%- endset -%}
+
+        #[derive(Args, Clone)]
+        pub struct {{ query_param_type_name }} {
+            {% for p in op.query_params -%}
+                {% set ty = p.type.to_rust() -%}
+                {% if not p.required %}{% set ty %}Option<{{ ty }}>{% endset %}{% endif -%}
+                {% if p.description is defined -%}{{ p.description | to_doc_comment(style="rust") }}{% endif %}
+                #[arg(long)]
+                pub {{ p.name }}: {{ ty }},
+            {% endfor %}
+        }
+
+        impl From<{{ query_param_type_name }}> for api::{{ query_param_type_name }} {
+            fn from(
+                {{ query_param_type_name }} {
+                    {% for p in op.query_params -%}{{ p.name }},{% endfor %}
+                }: {{ query_param_type_name }},
+            ) -> Self {
+                Self {
+                    {% for p in op.query_params -%}
+                        {% if p.name in ["after", "before", "since", "until"] -%}
+                            {{ p.name }}:
+                            {%- if p.required %}
+                            {{ p.name }}.to_rfc3339(),
+                            {%- else %}
+                            {{ p.name }}.map(|dt| dt.to_rfc3339()),
+                            {% endif -%}
+                        {% else -%}
+                            {{ p.name }},
+                        {% endif -%}
+                    {% endfor %}
+                }
+            }
+        }
+    {% endif %}
+{% endfor %}
 
 #[derive(Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -43,7 +86,7 @@ pub enum {{ resource_type_name }}Commands {
             {# body parameter struct -#}
             {% if op.request_body_schema_name is defined -%}
                 {{ op.request_body_schema_name | to_snake_case }}:
-                    JsonOf<{{ op.request_body_schema_name }}>,
+                    JsonOf<api::{{ op.request_body_schema_name }}>,
             {% endif -%}
 
             {# query parameters -#}
@@ -63,7 +106,7 @@ pub enum {{ resource_type_name }}Commands {
 }
 
 impl {{ resource_type_name }}Commands {
-    pub async fn exec(self, client: &svix::api::Svix, color_mode: ColorMode) -> anyhow::Result<()> {
+    pub async fn exec(self, client: &api::Svix, color_mode: colored_json::ColorMode) -> anyhow::Result<()> {
         match self {
             {% for op in resource.operations -%}
                 {% set has_query_params = op.query_params | length > 0 -%}
