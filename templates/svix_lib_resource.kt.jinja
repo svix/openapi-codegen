@@ -98,7 +98,7 @@ class {{ resource_type_name }} internal constructor(token: String, options: Svix
 
                     {# query parameters, PostOptions -#}
                     {% for p in op.query_params -%}
-                        options.{{ p.name }},
+                        options.{{ p.name | to_lower_camel_case }},
                     {% endfor -%}
 
                     {# PostOptions -#}
