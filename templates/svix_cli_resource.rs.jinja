@@ -7,7 +7,7 @@
 
 use chrono::{DateTime, Utc};
 use clap::{Args, Subcommand};
-use svix::api::{self, Ordering};
+use svix::api::*;
 
 {% if resource.has_post_operation -%}
 use crate::cli_types::PostOptions;
@@ -31,7 +31,7 @@ use crate::json::JsonOf;
             {% endfor %}
         }
 
-        impl From<{{ query_param_type_name }}> for api::{{ query_param_type_name }} {
+        impl From<{{ query_param_type_name }}> for svix::api::{{ query_param_type_name }} {
             fn from(
                 {{ query_param_type_name }} {
                     {% for p in op.query_params -%}{{ p.name }},{% endfor %}
@@ -39,7 +39,7 @@ use crate::json::JsonOf;
             ) -> Self {
                 Self {
                     {% for p in op.query_params -%}
-                        {% if p.name in ["after", "before", "since", "until"] -%}
+                        {% if p.type.to_rust() == "DateTime<Utc>" -%}
                             {{ p.name }}:
                             {%- if p.required %}
                             {{ p.name }}.to_rfc3339(),
@@ -86,7 +86,7 @@ pub enum {{ resource_type_name }}Commands {
             {# body parameter struct -#}
             {% if op.request_body_schema_name is defined -%}
                 {{ op.request_body_schema_name | to_snake_case }}:
-                    JsonOf<api::{{ op.request_body_schema_name }}>,
+                    JsonOf<{{ op.request_body_schema_name }}>,
             {% endif -%}
 
             {# query parameters -#}
@@ -106,7 +106,7 @@ pub enum {{ resource_type_name }}Commands {
 }
 
 impl {{ resource_type_name }}Commands {
-    pub async fn exec(self, client: &api::Svix, color_mode: colored_json::ColorMode) -> anyhow::Result<()> {
+    pub async fn exec(self, client: &Svix, color_mode: colored_json::ColorMode) -> anyhow::Result<()> {
         match self {
             {% for op in resource.operations -%}
                 {% set has_query_params = op.query_params | length > 0 -%}
