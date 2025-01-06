@@ -21,7 +21,7 @@ pub(crate) fn run_formatter(path: &Utf8Path) {
 
     let (formatter, args) = match file_ext {
         "rs" => ("rustfmt", ["+nightly", "--edition", "2021"].as_slice()),
-        "go" => ("gofmt", [].as_slice()),
+        "go" => ("gofmt", ["-w"].as_slice()),
         "kt" => ("ktfmt", ["--kotlinlang-style"].as_slice()),
         _ => {
             tracing::debug!("no known formatter for {file_ext} files");
