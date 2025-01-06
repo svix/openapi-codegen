@@ -28,7 +28,11 @@ pub(crate) struct Api {
 }
 
 impl Api {
-    pub(crate) fn new(paths: openapi::Paths, with_deprecated: bool) -> anyhow::Result<Self> {
+    pub(crate) fn new(
+        paths: openapi::Paths,
+        with_deprecated: bool,
+        component_schemas: &IndexMap<String, openapi::SchemaObject>,
+    ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
         for (path, pi) in paths {
@@ -46,7 +50,9 @@ impl Api {
                     continue;
                 }
 
-                if let Some((res_path, op)) = Operation::from_openapi(&path, method, op) {
+                if let Some((res_path, op)) =
+                    Operation::from_openapi(&path, method, op, component_schemas)
+                {
                     let resource = get_or_insert_resource(&mut resources, res_path);
                     if op.method == "post" {
                         resource.has_post_operation = true;
@@ -223,6 +229,10 @@ struct Operation {
     /// Name of the request body type, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     request_body_schema_name: Option<String>,
+    /// Some request bodies are required, but all the fields are optional (i.e. the CLI can omit
+    /// this from the argument list).
+    /// Only useful when `request_body_schema_name` is `Some`.
+    request_body_all_optional: bool,
     /// Name of the response body type, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     response_body_schema_name: Option<String>,
@@ -234,6 +244,7 @@ impl Operation {
         path: &str,
         method: &str,
         op: openapi::Operation,
+        component_schemas: &IndexMap<String, aide::openapi::SchemaObject>,
     ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
@@ -343,6 +354,51 @@ impl Operation {
             }
         }
 
+        let request_body_all_optional = op
+            .request_body
+            .as_ref()
+            .map(|r| {
+                match r {
+                    ReferenceOr::Reference { .. } => {
+                        unimplemented!("reference")
+                    }
+                    ReferenceOr::Item(body) => {
+                        if let Some(mt) = body.content.get("application/json") {
+                            match mt.schema.as_ref().map(|so| &so.json_schema) {
+                                Some(Schema::Object(schemars::schema::SchemaObject {
+                                    object: Some(ov),
+                                    ..
+                                })) => {
+                                    return ov.required.is_empty();
+                                }
+                                Some(Schema::Object(schemars::schema::SchemaObject {
+                                    reference: Some(s),
+                                    ..
+                                })) => {
+                                    match component_schemas
+                                        .get(
+                                            &get_schema_name(Some(s)).expect("schema should exist"),
+                                        )
+                                        .map(|so| &so.json_schema)
+                                    {
+                                        Some(Schema::Object(schemars::schema::SchemaObject {
+                                            object: Some(ov),
+                                            ..
+                                        })) => {
+                                            return ov.required.is_empty();
+                                        }
+                                        _ => unimplemented!("double ref not supported"),
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                false
+            })
+            .unwrap_or_default();
+
         let request_body_schema_name = op.request_body.and_then(|b| match b {
             ReferenceOr::Item(mut req_body) => {
                 assert!(req_body.required);
@@ -362,7 +418,7 @@ impl Operation {
                         if !obj.is_ref() {
                             tracing::error!(?obj, "unexpected non-$ref json body schema");
                         }
-                        get_schema_name(obj.reference)
+                        get_schema_name(obj.reference.as_deref())
                     }
                 }
             }
@@ -415,6 +471,7 @@ impl Operation {
             header_params,
             query_params,
             request_body_schema_name,
+            request_body_all_optional,
             response_body_schema_name,
         };
         Some((res_path, op))
@@ -458,7 +515,7 @@ fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<Str
                     if !obj.is_ref() {
                         tracing::error!(?obj, "unexpected non-$ref json body schema");
                     }
-                    get_schema_name(obj.reference)
+                    get_schema_name(obj.reference.as_deref())
                 }
             }
         }

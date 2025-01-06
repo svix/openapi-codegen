@@ -86,7 +86,12 @@ pub enum {{ resource_type_name }}Commands {
             {# body parameter struct -#}
             {% if op.request_body_schema_name is defined -%}
                 {{ op.request_body_schema_name | to_snake_case }}:
-                    JsonOf<{{ op.request_body_schema_name }}>,
+                {% if op.request_body_all_optional %}
+                Option<JsonOf<{{ op.request_body_schema_name }}>>
+                {% else %}
+                JsonOf<{{ op.request_body_schema_name }}>
+                {% endif %}
+                ,
             {% endif -%}
 
             {# query parameters -#}
@@ -151,7 +156,13 @@ impl {{ resource_type_name }}Commands {
 
                             {# body parameter struct -#}
                             {% if op.request_body_schema_name is defined -%}
-                                {{ op.request_body_schema_name | to_snake_case }}.into_inner(),
+                                {{ op.request_body_schema_name | to_snake_case }}
+                                {% if op.request_body_all_optional -%}
+                                    .map(|x| x.into_inner()).unwrap_or_default()
+                                {% else -%}
+                                    .into_inner()
+                                {% endif -%}
+                                ,
                             {% endif -%}
 
                             {# query parameters -#}
