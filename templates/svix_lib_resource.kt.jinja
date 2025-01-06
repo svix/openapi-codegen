@@ -84,7 +84,8 @@ class {{ resource_type_name }} internal constructor(token: String, options: Svix
         {%- endif %}
         {
             try {
-                return api.{{ op.id | to_lower_camel_case }}(
+                {% if op.response_body_schema_name is defined %}return {% endif -%}
+                api.{{ op.id | to_lower_camel_case }}(
                     {# path parameters -#}
                     {% for p in op.path_params -%}
                         {{ p | to_lower_camel_case }},
