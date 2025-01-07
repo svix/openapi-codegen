@@ -75,7 +75,7 @@ fn main() -> anyhow::Result<()> {
 
         generate_api(
             api,
-            &template,
+            template,
             output_dir
                 .path()
                 .try_into()

@@ -2,19 +2,10 @@ use std::borrow::Cow;
 
 use heck::{ToLowerCamelCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
 use itertools::Itertools as _;
-use minijinja::{path_loader, value::Kwargs};
+use minijinja::value::Kwargs;
 
 pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
-    env.set_loader({
-        let loader = path_loader("templates");
-        // Try finding the specified template
-        move |name| match loader(name)? {
-            Some(src) => Ok(Some(src)),
-            // If not found, try with extra `.jinja` extension
-            None => loader(&format!("{name}.jinja")),
-        }
-    });
 
     // Custom filters
     env.add_filter("to_snake_case", |s: Cow<'_, str>| s.to_snake_case());

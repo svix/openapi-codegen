@@ -2,7 +2,7 @@ use std::io::BufWriter;
 
 use anyhow::Context as _;
 use camino::Utf8Path;
-use fs_err::File;
+use fs_err::{self as fs, File};
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use minijinja::context;
 
@@ -10,19 +10,21 @@ use crate::{api::Api, template, util::run_formatter};
 
 pub(crate) fn generate_api(
     api: Api,
-    template_name: &str,
+    tpl_name: String,
     output_dir: &Utf8Path,
     no_format: bool,
 ) -> anyhow::Result<()> {
-    // Use the second `.`-separated segment of the filename, so for
-    // `foo.rs.jinja` this get us `rs`, not `jinja`.
-    let tpl_file_ext = template_name
-        .split('.')
-        .nth(1)
-        .context("template must have a file extension")?;
+    let (tpl_file_ext, tpl_filename) = match tpl_name.strip_suffix(".jinja") {
+        Some(basename) => (extension(basename), &tpl_name),
+        None => (extension(&tpl_name), &format!("{tpl_name}.jinja")),
+    };
 
-    let minijinja_env = template::env()?;
-    let tpl = minijinja_env.get_template(template_name)?;
+    let tpl_file_ext = tpl_file_ext.context("template must have a file extension")?;
+    let tpl_source = fs::read_to_string(Utf8Path::new("templates").join(tpl_filename))?;
+
+    let mut minijinja_env = template::env()?;
+    minijinja_env.add_template(tpl_filename, &tpl_source)?;
+    let tpl = minijinja_env.get_template(tpl_filename)?;
 
     for (name, resource) in api.resources {
         let basename = match tpl_file_ext {
@@ -43,4 +45,8 @@ pub(crate) fn generate_api(
     }
 
     Ok(())
+}
+
+fn extension(filename: &str) -> Option<&str> {
+    Utf8Path::new(filename).extension()
 }
