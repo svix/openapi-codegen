@@ -12,7 +12,7 @@ mod template;
 mod types;
 mod util;
 
-use self::{api::Api, generator::generate_api};
+use self::{api::Api, generator::generate};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -67,14 +67,15 @@ fn main() -> anyhow::Result<()> {
             writeln!(api_file, "{api:#?}")?;
         }
 
+        let types = api.types(&mut components.schemas);
         {
-            let types = api.types(&mut components.schemas);
             let mut types_file = BufWriter::new(File::create("types.ron")?);
             writeln!(types_file, "{types:#?}")?;
         }
 
-        generate_api(
+        generate(
             api,
+            types,
             template,
             output_dir
                 .path()
