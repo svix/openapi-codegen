@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 
 use crate::{
-    types::{FieldType, Types},
+    types::{FieldType, Type, Types},
     util::get_schema_name,
 };
 
@@ -73,13 +73,18 @@ impl Api {
                         tracing::warn!(schema_name, "schema not found");
                         return None;
                     };
-                    match s.json_schema {
+                    let obj = match s.json_schema {
                         Schema::Bool(_) => {
-                            tracing::warn!("found $ref'erenced bool schema, wat?!");
-                            None
+                            tracing::warn!(schema_name, "found $ref'erenced bool schema, wat?!");
+                            return None;
                         }
-                        Schema::Object(schema_object) => {
-                            Some((schema_name.to_owned(), schema_object))
+                        Schema::Object(o) => o,
+                    };
+                    match Type::from_schema(schema_name.to_owned(), obj) {
+                        Ok(ty) => Some((schema_name.to_owned(), ty)),
+                        Err(e) => {
+                            tracing::warn!(schema_name, "unsupported schema: {e:#}");
+                            None
                         }
                     }
                 })
