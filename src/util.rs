@@ -5,7 +5,7 @@ use anyhow::Context as _;
 use camino::Utf8Path;
 use serde::de::DeserializeOwned;
 
-pub(crate) fn get_schema_name(maybe_ref: Option<String>) -> Option<String> {
+pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {
     let r = maybe_ref?;
     let schema_name = r.strip_prefix("#/components/schemas/");
     if schema_name.is_none() {

@@ -72,7 +72,7 @@ impl FieldType {
             Some(SingleOrVec::Vec(types)) => {
                 bail!("unsupported multi-typed parameter: `{types:?}`")
             }
-            None => match get_schema_name(obj.reference) {
+            None => match get_schema_name(obj.reference.as_deref()) {
                 Some(name) => Self::SchemaRef(name),
                 None => bail!("unsupported type-less parameter"),
             },
