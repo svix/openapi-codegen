@@ -1,5 +1,3 @@
-#![allow(unused_imports)]
-
 {% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
@@ -7,7 +5,6 @@
 use super::PostOptions;
 {% endif -%}
 use crate::{
-    apis::{{ api_mod_name }},
     error::Result,
     models::*,
     Configuration,
@@ -105,23 +102,36 @@ impl<'a> {{ resource_type_name }}<'a> {
             let PostOptions { idempotency_key } = options.unwrap_or_default();
         {% endif -%}
 
-        {% set weird_rust_generator_op_id = op.id | replace(".", "-period-") %}
-        {% set fn_name = weird_rust_generator_op_id | to_snake_case %}
-        {% set params_struct_name -%}
-            {{ weird_rust_generator_op_id | to_upper_camel_case }}Params
-        {%- endset -%}
-        {{ api_mod_name }}::{{ fn_name }}(
-            self.cfg,
-            {{ api_mod_name }}::{{ params_struct_name }} {
-                {% for p in op.path_params -%}{{ p }},{% endfor %}
-                {% if op.request_body_schema_name is defined -%}
-                    {{ op.request_body_schema_name | to_snake_case -}},
-                {% endif -%}
-                {% for p in op.query_params %}{{ p.name }},{% endfor -%}
-                {% if has_header_params %}idempotency_key,{% endif %}
-            }
-        )
-        .await
+        {# make the request #}
+        crate::request::Request::new(http1::Method::{{ op.method | upper }}, "{{ op.path }}")
+
+        {% for p in op.path_params -%}
+            .with_path_param("{{ p }}", {{ p }})
+        {% endfor -%}
+
+        {% for p in op.query_params -%}
+            {% if p.required -%}
+                .with_query_param
+            {%- else -%}
+                .with_optional_query_param
+            {%- endif -%}
+            ("{{ p.name }}", {{ p.name }})
+        {% endfor -%}
+
+        {% if op.request_body_schema_name is defined -%}
+            .with_body_param({{ op.request_body_schema_name | to_snake_case }})
+        {% endif -%}
+
+        {% if has_header_params -%}
+            .with_optional_header_param("idempotency-key", idempotency_key)
+        {% endif -%}
+
+        {% if op.response_body_schema_name is undefined -%}
+            .returns_nothing()
+        {% endif -%}
+
+            .execute(self.cfg)
+            .await
     }
     {% endfor %}
 }

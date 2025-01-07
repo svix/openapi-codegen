@@ -1,22 +1,14 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::BufWriter,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
-use camino::Utf8Path;
 use derive_more::Debug;
-use fs_err::File;
-use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use indexmap::IndexMap;
-use minijinja::context;
 use schemars::schema::{InstanceType, Schema};
 
 use crate::{
-    template,
     types::{FieldType, Types},
-    util::{get_schema_name, run_formatter},
+    util::get_schema_name,
 };
 
 /// The API we generate a client for.
@@ -24,7 +16,7 @@ use crate::{
 /// Intermediate representation of `paths` from the spec.
 #[derive(Debug)]
 pub(crate) struct Api {
-    resources: BTreeMap<String, Resource>,
+    pub resources: BTreeMap<String, Resource>,
 }
 
 impl Api {
@@ -88,43 +80,6 @@ impl Api {
                 .collect(),
         )
     }
-
-    pub(crate) fn generate(
-        self,
-        template_name: &str,
-        output_dir: &Utf8Path,
-        no_format: bool,
-    ) -> anyhow::Result<()> {
-        // Use the second `.`-separated segment of the filename, so for
-        // `foo.rs.jinja` this get us `rs`, not `jinja`.
-        let tpl_file_ext = template_name
-            .split('.')
-            .nth(1)
-            .context("template must have a file extension")?;
-
-        let minijinja_env = template::env()?;
-        let tpl = minijinja_env.get_template(template_name)?;
-
-        for (name, resource) in self.resources {
-            let basename = match tpl_file_ext {
-                "cs" | "java" | "kt" => name.to_upper_camel_case(),
-                _ => name.to_snake_case(),
-            };
-
-            let referenced_components = resource.referenced_components();
-            let ctx = context! { resource, referenced_components };
-
-            let file_path = output_dir.join(format!("{basename}.{tpl_file_ext}"));
-            let out_file = BufWriter::new(File::create(&file_path)?);
-            tpl.render_to_write(ctx, out_file)?;
-
-            if !no_format {
-                run_formatter(&file_path);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 fn get_or_insert_resource(
@@ -149,7 +104,7 @@ fn get_or_insert_resource(
 
 /// A named group of [`Operation`]s.
 #[derive(Debug, serde::Serialize)]
-struct Resource {
+pub(crate) struct Resource {
     name: String,
     operations: Vec<Operation>,
     subresources: BTreeMap<String, Resource>,
@@ -167,7 +122,7 @@ impl Resource {
         }
     }
 
-    fn referenced_components(&self) -> BTreeSet<&str> {
+    pub(crate) fn referenced_components(&self) -> BTreeSet<&str> {
         let mut res = BTreeSet::new();
 
         for resource in self.subresources.values() {

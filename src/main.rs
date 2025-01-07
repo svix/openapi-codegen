@@ -7,11 +7,12 @@ use fs_err::{self as fs, File};
 use tempfile::TempDir;
 
 mod api;
+mod generator;
 mod template;
 mod types;
 mod util;
 
-use self::api::Api;
+use self::{api::Api, generator::generate};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -66,14 +67,16 @@ fn main() -> anyhow::Result<()> {
             writeln!(api_file, "{api:#?}")?;
         }
 
+        let types = api.types(&mut components.schemas);
         {
-            let types = api.types(&mut components.schemas);
             let mut types_file = BufWriter::new(File::create("types.ron")?);
             writeln!(types_file, "{types:#?}")?;
         }
 
-        api.generate(
-            &template,
+        generate(
+            api,
+            types,
+            template,
             output_dir
                 .path()
                 .try_into()
