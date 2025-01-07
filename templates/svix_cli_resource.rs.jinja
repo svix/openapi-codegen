@@ -158,11 +158,9 @@ impl {{ resource_type_name }}Commands {
                             {% if op.request_body_schema_name is defined -%}
                                 {{ op.request_body_schema_name | to_snake_case }}
                                 {% if op.request_body_all_optional -%}
-                                    .map(|x| x.into_inner()).unwrap_or_default()
-                                {% else -%}
-                                    .into_inner()
+                                    .unwrap_or_default()
                                 {% endif -%}
-                                ,
+                                    .into_inner(),
                             {% endif -%}
 
                             {# query parameters -#}
