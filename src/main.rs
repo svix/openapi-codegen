@@ -7,11 +7,12 @@ use fs_err::{self as fs, File};
 use tempfile::TempDir;
 
 mod api;
+mod generator;
 mod template;
 mod types;
 mod util;
 
-use self::api::Api;
+use self::{api::Api, generator::generate_api};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -72,7 +73,8 @@ fn main() -> anyhow::Result<()> {
             writeln!(types_file, "{types:#?}")?;
         }
 
-        api.generate(
+        generate_api(
+            api,
             &template,
             output_dir
                 .path()
