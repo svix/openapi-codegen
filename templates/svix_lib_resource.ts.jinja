@@ -41,7 +41,7 @@ export class {{ resource_type_name }} {
         {% set has_header_params = op.header_params | length > 0 -%}
         {% set response_type =
             op.response_body_schema_name | default("void") | replace("_", "") -%}
-        {{ op.description | to_doc_comment(style="js") }}
+        {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="js") }}
         public {{ op.name | to_lower_camel_case }}(
             {# path parameters -#}
             {% for p in op.path_params -%}

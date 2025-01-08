@@ -55,6 +55,9 @@ impl<'a> {{ resource_type_name }}<'a> {
     {% if op.description is defined -%}
         {{ op.description | to_doc_comment(style="rust") }}
     {% endif -%}
+    {% if op.deprecated -%}
+        #[deprecated]
+    {% endif -%}
     pub async fn {{ op.name | to_snake_case }}(
         &self,
 

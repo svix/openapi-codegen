@@ -46,6 +46,20 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
                 .to_string())
         },
     );
+    env.add_filter(
+        "with_javadoc_deprecation",
+        |s: Cow<'_, str>, deprecated: bool| {
+            if deprecated {
+                if s.is_empty() {
+                    "@deprecated".to_owned()
+                } else {
+                    s.into_owned() + "\n\n@deprecated"
+                }
+            } else {
+                s.into_owned()
+            }
+        },
+    );
 
     Ok(env)
 }
