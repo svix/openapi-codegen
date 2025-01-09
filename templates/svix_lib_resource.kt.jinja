@@ -50,7 +50,10 @@ class {{ resource_type_name }} internal constructor(token: String, options: Svix
         {% set has_required_query_params =
             op.query_params | selectattr("required") | length > 0 -%}
         {% set has_header_params = op.header_params | length > 0 -%}
-        {{ op.description | to_doc_comment(style="kotlin") }}
+        {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="kotlin") }}
+        {% if op.deprecated -%}
+            @Deprecated
+        {% endif -%}
         suspend fun {{ op.name | to_lower_camel_case }}(
             {# path parameters -#}
             {% for p in op.path_params -%}
