@@ -28,48 +28,128 @@ type {{ resource_type_name }} struct {
 {% endfor -%}
 
 {% for op in resource.operations -%}
+	{% set op_name = op.name | to_upper_camel_case %}
 	{% set has_query_params = op.query_params | length > 0 -%}
 	{% set has_required_query_params =
 		op.query_params | selectattr("required") | length > 0 -%}
 	{% set has_header_params = op.header_params | length > 0 -%}
+	{% if op.request_body_schema_name is defined -%}
+		{% set request_body_param = op.request_body_schema_name | to_lower_camel_case -%}
+	{% endif -%}
+
+	{# return type -#}
 	{% if op.response_body_schema_name is defined -%}
 		{% set return_type -%}
 			(*{{ op.response_body_schema_name | to_upper_camel_case }}, error)
 		{%- endset -%}
 	{% else -%}
-		{% set response_type %}error{% endset -%}
+		{% set return_type %}error{% endset -%}
 	{% endif -%}
-	{{ op.description | to_doc_comment(style="go") }}
-	func (self *{{ resource_type_name }}) {{ op.name | to_upper_camel_case }}(
-		{# path parameters -#}
+
+	{# separated because we might need it twice: arguments except PostOptions #}
+	{% set common_args -%}
+		ctx context.Context,
+
+		{#- path parameters #}
 		{% for p in op.path_params -%}
 			{{ p | to_lower_camel_case }} string,
 		{% endfor -%}
 
 		{# body parameter interface -#}
 		{% if op.request_body_schema_name is defined -%}
-			{% set field_name = op.request_body_schema_name | to_lower_camel_case -%}
-			{{ field_name }} *{{ op.request_body_schema_name }},
+			{{ request_body_param }} *{{ op.request_body_schema_name }},
 		{% endif -%}
 
 		{# query parameters -#}
 		{% if has_query_params -%}
 			{% set field_ty -%}
-				{{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
+				{{ resource_type_name }}{{ op_name }}Options
 			{%- endset -%}
 			{% if not has_required_query_params -%}
 				{% set field_ty %}*{{ field_ty }}{% endset -%}
 			{% endif -%}
 			options {{ field_ty }},
 		{% endif -%}
+	{% endset -%}
 
-		{# PostOptions -#}
-		{% if has_header_params -%}
-			{# for now, only idempotency-key is supported in header params -#}
-			options *PostOptions,
+	{# separated because it goes in a different place depending on the operation: inner API call #}
+	{% set main_impl -%}
+		req := self.api.{{ resource_type_name }}API.{{ op.id | to_upper_camel_case }}(
+			ctx,
+			{% for p in op.path_params -%}
+				{{ p | to_lower_camel_case }},
+			{% endfor -%}
+		)
+		{#- body -#}
+		{% if op.request_body_schema_name is defined -%}
+			.{{ op.request_body_schema_name }}(*{{ request_body_param }})
+		{% endif %}
+
+		{# query params -#}
+		{% if has_query_params -%}
+			if options != nil {
+				{% for p in op.query_params -%}
+					{% set name = p.name | to_upper_camel_case -%}
+					if options.{{ name }} != nil {
+						req = req.{{ name }}(*options.{{ name }})
+					}
+				{% endfor -%}
+			}
+
 		{% endif -%}
-	) {{ return_type }} {
-		// TODO
-	}{% if not loop.last %}{{ "\n" }}{% endif %}
-{% endfor -%}
 
+		{# idempotency -#}
+		{% if has_header_params -%}
+			if options != nil {
+				if options.IdempotencyKey != nil {
+					req = req.IdempotencyKey(*options.IdempotencyKey)
+				}
+			}
+
+		{% endif -%}
+
+		{% if op.response_body_schema_name is defined -%}
+			ret, res, err := req.Execute()
+			if err != nil {
+				return nil, wrapError(err, res)
+			}
+
+			return ret, nil
+		{% else -%}
+			res, err := req.Execute()
+			return wrapError(err, res)
+		{% endif -%}
+	{% endset -%}
+
+	{# regular method #}
+	{{ op.description | to_doc_comment(style="go") }}
+	func (self *{{ resource_type_name }}) {{ op_name }}(
+		{{ common_args -}}
+	) {{ return_type }} {
+		{% if has_header_params -%}
+			return self.{{ op_name }}WithOptions(
+				ctx,
+				{% for p in op.path_params -%}
+					{{ p | to_lower_camel_case }},
+				{% endfor -%}
+				{% if op.request_body_schema_name is defined -%}
+					{{ op.request_body_schema_name | to_lower_camel_case }},
+				{% endif -%}
+				nil,
+			);
+		{% else -%}
+			{{ main_impl -}}
+		{% endif -%}
+	}
+
+	{# if op has PostOptions: separate OpWithOptions method #}
+	{% if has_header_params -%}
+		{{ op.description | to_doc_comment(style="go") }}
+		func (self *{{ resource_type_name }}) {{ op_name }}WithOptions(
+			{{ common_args -}}
+			options *PostOptions,
+		) {{ return_type }} {
+			{{ main_impl -}}
+		}
+	{% endif %}
+{% endfor -%}
