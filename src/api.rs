@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 
 use crate::{
-    types::{FieldType, Type, Types},
+    types::{FieldType, Types},
     util::get_schema_name,
 };
 
@@ -64,32 +64,7 @@ impl Api {
     }
 
     pub(crate) fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
-        let components: BTreeSet<_> = self.referenced_components().collect();
-        Types(
-            components
-                .into_iter()
-                .filter_map(|schema_name| {
-                    let Some(s) = schemas.swap_remove(schema_name) else {
-                        tracing::warn!(schema_name, "schema not found");
-                        return None;
-                    };
-                    let obj = match s.json_schema {
-                        Schema::Bool(_) => {
-                            tracing::warn!(schema_name, "found $ref'erenced bool schema, wat?!");
-                            return None;
-                        }
-                        Schema::Object(o) => o,
-                    };
-                    match Type::from_schema(schema_name.to_owned(), obj) {
-                        Ok(ty) => Some((schema_name.to_owned(), ty)),
-                        Err(e) => {
-                            tracing::warn!(schema_name, "unsupported schema: {e:#}");
-                            None
-                        }
-                    }
-                })
-                .collect(),
-        )
+        Types::from_referenced_components(schemas, self.referenced_components())
     }
 }
 

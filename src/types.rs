@@ -1,7 +1,12 @@
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use aide::openapi;
 use anyhow::{bail, ensure, Context as _};
+use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema, SchemaObject, SingleOrVec};
 use serde::Serialize;
 
@@ -12,6 +17,51 @@ use crate::util::get_schema_name;
 /// Intermediate representation of (some) `components` from the spec.
 #[derive(Debug)]
 pub(crate) struct Types(pub BTreeMap<String, Type>);
+
+impl Types {
+    pub(crate) fn from_referenced_components<'a>(
+        schemas: &mut IndexMap<String, openapi::SchemaObject>,
+        components: impl Iterator<Item = &'a str>,
+    ) -> Self {
+        let mut types = BTreeMap::new();
+        let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {
+            let Some(s) = schemas.swap_remove(schema_name) else {
+                tracing::warn!(schema_name, "schema not found");
+                return;
+            };
+
+            let obj = match s.json_schema {
+                Schema::Bool(_) => {
+                    tracing::warn!(schema_name, "found $ref'erenced bool schema, wat?!");
+                    return;
+                }
+                Schema::Object(o) => o,
+            };
+
+            match Type::from_schema(schema_name.to_owned(), obj) {
+                Ok(ty) => {
+                    extra_components.extend(
+                        ty.referenced_components()
+                            .into_iter()
+                            .filter(|&c| c != schema_name && !types.contains_key(c))
+                            .map(ToOwned::to_owned),
+                    );
+                    types.insert(schema_name.to_owned(), ty);
+                }
+                Err(e) => {
+                    tracing::warn!(schema_name, "unsupported schema: {e:#}");
+                }
+            }
+        };
+
+        let mut extra_components: BTreeSet<_> = components.map(ToOwned::to_owned).collect();
+        while let Some(c) = extra_components.pop_first() {
+            add_type(&c, &mut extra_components);
+        }
+
+        Self(types)
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Type {
@@ -67,6 +117,20 @@ impl Type {
                     .collect::<anyhow::Result<_>>()?,
             },
         })
+    }
+
+    pub(crate) fn referenced_components(&self) -> BTreeSet<&str> {
+        match &self.data {
+            TypeData::Struct { fields } => fields
+                .iter()
+                .filter_map(|f| f.r#type.referenced_schema())
+                .collect(),
+            TypeData::Enum { variants } => variants
+                .iter()
+                .flat_map(|v| &v.fields)
+                .filter_map(|f| f.r#type.referenced_schema())
+                .collect(),
+        }
     }
 }
 
@@ -344,6 +408,14 @@ impl FieldType {
             )
             .into(),
             Self::SchemaRef(name) => name.clone().into(),
+        }
+    }
+
+    pub(crate) fn referenced_schema(&self) -> Option<&str> {
+        match self {
+            Self::SchemaRef(v) => Some(v),
+            Self::List(ty) | Self::Set(ty) | Self::Map { value_ty: ty } => ty.referenced_schema(),
+            _ => None,
         }
     }
 }
