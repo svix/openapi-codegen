@@ -91,6 +91,7 @@ pub(crate) struct Field {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     required: bool,
+    nullable: bool,
     deprecated: bool,
 }
 
@@ -105,12 +106,19 @@ impl Field {
         ensure!(obj.const_value.is_none(), "unsupported const_value");
         ensure!(obj.enum_values.is_none(), "unsupported enum_values");
 
+        let nullable = obj
+            .extensions
+            .get("nullable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         Ok(Self {
             name,
             r#type: FieldType::from_schema_object(obj)?,
             default: metadata.default,
             description: metadata.description,
             required,
+            nullable,
             deprecated: metadata.deprecated,
         })
     }
