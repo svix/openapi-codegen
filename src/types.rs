@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
-use aide::openapi::{self};
+use aide::openapi;
 use anyhow::{bail, ensure, Context as _};
 use schemars::schema::{InstanceType, Schema, SchemaObject, SingleOrVec};
 use serde::Serialize;
