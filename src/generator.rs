@@ -83,7 +83,8 @@ impl Generator<'_> {
 
     fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
         for (name, ty) in types {
-            self.render_tpl(name, context! { type => ty })?;
+            let referenced_components = ty.referenced_components();
+            self.render_tpl(name, context! { type => ty, referenced_components })?;
         }
 
         Ok(())
