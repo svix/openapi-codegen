@@ -24,7 +24,7 @@ struct TemplateFrontmatter {
 #[serde(rename_all = "snake_case")]
 enum TemplateKind {
     #[default]
-    Api,
+    ApiResource,
     Type,
 }
 
@@ -59,7 +59,7 @@ pub(crate) fn generate(
     };
 
     match tpl_frontmatter.template_kind {
-        TemplateKind::Api => generator.generate_api(api),
+        TemplateKind::ApiResource => generator.generate_api_resources(api),
         TemplateKind::Type => generator.generate_types(types),
     }
 }
@@ -72,7 +72,7 @@ struct Generator<'a> {
 }
 
 impl Generator<'_> {
-    fn generate_api(self, api: Api) -> anyhow::Result<()> {
+    fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
         for (name, resource) in api.resources {
             let referenced_components = resource.referenced_components();
             self.render_tpl(name, context! { resource, referenced_components })?;
