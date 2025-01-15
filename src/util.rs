@@ -1,9 +1,15 @@
-use std::io::{BufRead, ErrorKind, Seek};
+use std::{
+    collections::BTreeMap,
+    io::{BufRead, ErrorKind, Seek},
+};
 use std::{collections::BTreeSet, io, process::Command, sync::Mutex};
 
 use anyhow::Context as _;
 use camino::Utf8Path;
-use serde::de::DeserializeOwned;
+use serde::{
+    de::DeserializeOwned,
+    ser::{Serialize, SerializeSeq as _, Serializer},
+};
 
 pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {
     let r = maybe_ref?;
@@ -109,4 +115,19 @@ where
     }
 
     toml::from_str(&buf).context("parsing frontmatter")
+}
+
+pub(crate) fn serialize_btree_map_values<K, V, S>(
+    map: &BTreeMap<K, V>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    V: Serialize,
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(map.len()))?;
+    for item in map.values() {
+        seq.serialize_element(item)?;
+    }
+    seq.end()
 }

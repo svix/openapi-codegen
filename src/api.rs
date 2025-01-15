@@ -5,17 +5,19 @@ use anyhow::{bail, Context as _};
 use derive_more::Debug;
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
+use serde::Serialize;
 
 use crate::{
     types::{FieldType, Types},
-    util::get_schema_name,
+    util::{get_schema_name, serialize_btree_map_values},
 };
 
 /// The API we generate a client for.
 ///
 /// Intermediate representation of `paths` from the spec.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub(crate) struct Api {
+    #[serde(serialize_with = "serialize_btree_map_values")]
     pub resources: BTreeMap<String, Resource>,
 }
 

@@ -25,6 +25,7 @@ struct TemplateFrontmatter {
 enum TemplateKind {
     #[default]
     ApiResource,
+    ApiSummary,
     Type,
 }
 
@@ -60,6 +61,7 @@ pub(crate) fn generate(
 
     match tpl_frontmatter.template_kind {
         TemplateKind::ApiResource => generator.generate_api_resources(api),
+        TemplateKind::ApiSummary => generator.generate_api_summary(api),
         TemplateKind::Type => generator.generate_types(types),
     }
 }
@@ -75,22 +77,31 @@ impl Generator<'_> {
     fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
         for (name, resource) in api.resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(name, context! { resource, referenced_components })?;
+            self.render_tpl(&name, context! { resource, referenced_components })?;
         }
 
         Ok(())
+    }
+
+    fn generate_api_summary(&self, api: Api) -> anyhow::Result<()> {
+        let name = match self.tpl_file_ext {
+            "rs" => "mod",
+            "py" => "__init__",
+            _ => "summary",
+        };
+        self.render_tpl(name, context! { api })
     }
 
     fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
         for (name, ty) in types {
             let referenced_components = ty.referenced_components();
-            self.render_tpl(name, context! { type => ty, referenced_components })?;
+            self.render_tpl(&name, context! { type => ty, referenced_components })?;
         }
 
         Ok(())
     }
 
-    fn render_tpl(&self, output_name: String, ctx: minijinja::Value) -> anyhow::Result<()> {
+    fn render_tpl(&self, output_name: &str, ctx: minijinja::Value) -> anyhow::Result<()> {
         let tpl_file_ext = self.tpl_file_ext;
         let basename = match tpl_file_ext {
             "cs" | "java" | "kt" => output_name.to_upper_camel_case(),
