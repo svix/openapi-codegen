@@ -23,48 +23,60 @@ pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {
     Some(schema_name?.to_owned())
 }
 
-pub(crate) fn run_formatter(path: &Utf8Path) {
+pub(crate) fn run_postprocessing(path: &Utf8Path) {
     let Some(file_ext) = path.extension() else {
         return;
     };
 
-    let (formatter, args) = match file_ext {
-        "rs" => (
-            "rustfmt",
-            [
-                "+nightly",
-                "--unstable-features",
-                "--skip-children",
-                "--edition",
-                "2021",
-            ]
-            .as_slice(),
-        ),
-        "go" => ("gofmt", ["-w"].as_slice()),
-        "kt" => ("ktfmt", ["--kotlinlang-style"].as_slice()),
-        _ => {
-            tracing::debug!("no known formatter for {file_ext} files");
-            return;
+    let postprocessing_tasks: &[(&str, &[&str])] = {
+        match file_ext {
+            "py" => &[
+                // fixme: the ordering of the commands is important, maybe ensure the order in a more robust way
+                ("ruff", ["check", "--fix"].as_slice()),
+                ("ruff", ["format"].as_slice()),
+            ],
+            "rs" => &[(
+                "rustfmt",
+                [
+                    "+nightly",
+                    "--unstable-features",
+                    "--skip-children",
+                    "--edition",
+                    "2021",
+                ]
+                .as_slice(),
+            )],
+            "go" => &[("gofmt", ["-w"].as_slice())],
+            "kt" => &[("ktfmt", ["--kotlinlang-style"].as_slice())],
+            _ => {
+                tracing::debug!("no known postprocessing command(s) for {file_ext} files");
+                return;
+            }
         }
     };
+    for (command, args) in postprocessing_tasks {
+        execute_postprocessing_command(path, command, args);
+    }
+}
 
-    let result = Command::new(formatter).args(args).arg(path).status();
+fn execute_postprocessing_command(path: &Utf8Path, command: &'static str, args: &[&str]) {
+    let result = Command::new(command).args(args).arg(path).status();
     match result {
         Ok(exit_status) if exit_status.success() => {}
         Ok(exit_status) => {
-            tracing::warn!(exit_status = exit_status.code(), "`{formatter}` failed");
+            tracing::warn!(exit_status = exit_status.code(), "`{command}` failed");
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            // only print one error per formatter that's not found
+            // only print one error per command that's not found
             static NOT_FOUND_LOGGED_FOR: Mutex<BTreeSet<&str>> = Mutex::new(BTreeSet::new());
-            if NOT_FOUND_LOGGED_FOR.lock().unwrap().insert(formatter) {
-                tracing::warn!("`{formatter}` not found");
+            if NOT_FOUND_LOGGED_FOR.lock().unwrap().insert(command) {
+                tracing::warn!("`{command}` not found");
             }
         }
         Err(e) => {
             tracing::warn!(
                 error = &e as &dyn std::error::Error,
-                "running `{formatter}` failed"
+                "running `{command}` failed"
             );
         }
     }

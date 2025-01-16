@@ -32,9 +32,9 @@ enum Command {
         #[clap(short, long)]
         input_file: String,
 
-        /// Disable automatic formatting of the output.
+        /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
         #[clap(long)]
-        no_format: bool,
+        no_postprocess: bool,
 
         /// Generate code for deprecated operations, too.
         #[clap(long)]
@@ -49,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     let Command::Generate {
         template,
         input_file,
-        no_format,
+        no_postprocess,
         with_deprecated,
     } = args.command;
 
@@ -81,7 +81,7 @@ fn main() -> anyhow::Result<()> {
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?,
-            no_format,
+            no_postprocess,
         )?;
     }
 
