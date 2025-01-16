@@ -1,4 +1,7 @@
-use std::io::{self, BufWriter, Write as _};
+use std::{
+    io::{self, BufWriter, Write as _},
+    path::PathBuf,
+};
 
 use aide::openapi::OpenApi;
 use anyhow::Context as _;
@@ -56,7 +59,11 @@ fn main() -> anyhow::Result<()> {
     let spec = fs::read_to_string(&input_file)?;
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
 
-    let output_dir = TempDir::new().context("failed to create tempdir")?;
+    let output_dir_root = PathBuf::from("out");
+    if !output_dir_root.exists() {
+        fs::create_dir(&output_dir_root).context("failed to create out dir")?;
+    }
+    let output_dir = TempDir::new_in(&output_dir_root).context("failed to create tempdir")?;
 
     let mut components = spec.components.unwrap_or_default();
 
