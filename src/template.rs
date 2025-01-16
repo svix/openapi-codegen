@@ -22,6 +22,9 @@ pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error>
             kwargs.assert_all_used()?;
 
             let prefix = match &*style {
+                "python" => {
+                    return Ok(format!(r#""""{s}""""#));
+                }
                 "java" | "kotlin" | "javascript" | "js" | "ts" | "typescript" => {
                     if !s.contains("\n") {
                         return Ok(format!("/** {s} */"));

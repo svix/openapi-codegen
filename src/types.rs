@@ -418,6 +418,23 @@ impl FieldType {
             _ => None,
         }
     }
+
+    fn to_python_typename(&self) -> Cow<'_, str> {
+        match self {
+            Self::Bool => "bool".into(),
+            Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => "int".into(),
+            Self::String => "str".into(),
+            Self::DateTime => "datetime".into(),
+            Self::Set(field_type) => format!("t.Set[{}]", field_type.to_python_typename()).into(),
+            Self::SchemaRef(name) => format!("models.{name}").into(),
+            Self::Uri => "str".into(),
+            Self::JsonObject => "t.Dict[str, t.Any]".into(),
+            Self::List(field_type) => format!("t.List[{}]", field_type.to_python_typename()).into(),
+            Self::Map { value_ty } => {
+                format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
+            }
+        }
+    }
 }
 
 impl minijinja::value::Object for FieldType {
@@ -432,6 +449,10 @@ impl minijinja::value::Object for FieldType {
         args: &[minijinja::Value],
     ) -> Result<minijinja::Value, minijinja::Error> {
         match method {
+            "to_python" => {
+                ensure_no_args(args, "to_python")?;
+                Ok(self.to_python_typename().into())
+            }
             "to_csharp" => {
                 ensure_no_args(args, "to_csharp")?;
                 Ok(self.to_csharp_typename().into())

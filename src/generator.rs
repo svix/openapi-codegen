@@ -11,7 +11,7 @@ use crate::{
     api::Api,
     template,
     types::Types,
-    util::{parse_frontmatter, run_formatter},
+    util::{parse_frontmatter, run_postprocessing},
 };
 
 #[derive(Default, Deserialize)]
@@ -34,7 +34,7 @@ pub(crate) fn generate(
     types: Types,
     tpl_name: String,
     output_dir: &Utf8Path,
-    no_format: bool,
+    no_postprocess: bool,
 ) -> anyhow::Result<()> {
     let (tpl_file_ext, tpl_filename) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (extension(basename), &tpl_name),
@@ -56,7 +56,7 @@ pub(crate) fn generate(
         tpl,
         tpl_file_ext,
         output_dir,
-        no_format,
+        no_postprocess,
     };
 
     match tpl_frontmatter.template_kind {
@@ -70,7 +70,7 @@ struct Generator<'a> {
     tpl: Template<'a, 'a>,
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
-    no_format: bool,
+    no_postprocess: bool,
 }
 
 impl Generator<'_> {
@@ -112,8 +112,8 @@ impl Generator<'_> {
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         self.tpl.render_to_write(ctx, out_file)?;
-        if !self.no_format {
-            run_formatter(&file_path);
+        if !self.no_postprocess {
+            run_postprocessing(&file_path);
         }
 
         Ok(())
