@@ -5,7 +5,7 @@ use std::{
 
 use aide::openapi::OpenApi;
 use anyhow::Context as _;
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs, File};
 use tempfile::TempDir;
@@ -44,9 +44,9 @@ enum Command {
         #[clap(long)]
         with_deprecated: bool,
 
-        /// Override the output dir (useful if you want to have the generator rewrite the file in the same location)
+        /// Set the output dir
         #[clap(long)]
-        override_output_dir: Option<PathBuf>,
+        override_output_dir: Option<Utf8PathBuf>,
     },
 }
 
@@ -59,28 +59,48 @@ fn main() -> anyhow::Result<()> {
         input_file,
         no_postprocess,
         with_deprecated,
-        override_output_dir,
+        override_output_dir: output_dir,
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
 
-    let output_dir_root = PathBuf::from("out");
-    if !output_dir_root.exists() {
-        fs::create_dir(&output_dir_root).context("failed to create out dir")?;
-    }
-    let tmp_output_dir = TempDir::new_in(&output_dir_root).context("failed to create tempdir")?;
-
-    let utf8_output_dir: &Utf8Path = {
-        if override_output_dir.is_some() {
-            override_output_dir.as_ref().unwrap().as_path()
-        } else {
-            tmp_output_dir.path()
+    match &output_dir {
+        Some(path) => {
+            analyze_and_generate(spec, template, path, with_deprecated, no_postprocess)?;
+            println!("done! output written to {path}");
         }
-    }
-    .try_into()
-    .context("non-UTF8 tempdir path")?;
+        None => {
+            let output_dir_root = PathBuf::from("out");
+            if !output_dir_root.exists() {
+                fs::create_dir(&output_dir_root).context("failed to create out dir")?;
+            }
+            let tmp_output_dir =
+                TempDir::new_in(&output_dir_root).context("failed to create tempdir")?;
 
+            // create if doesn't exist
+            let path = tmp_output_dir
+                .path()
+                .try_into()
+                .context("non-UTF8 tempdir path")?;
+            analyze_and_generate(spec, template, path, with_deprecated, no_postprocess)?;
+            // Persist the TempDir if everything was successful
+            let path = tmp_output_dir.into_path();
+
+            println!("done! output written to {}", path.display());
+        }
+    };
+
+    Ok(())
+}
+
+fn analyze_and_generate(
+    spec: OpenApi,
+    template: String,
+    path: &Utf8Path,
+    with_deprecated: bool,
+    no_postprocess: bool,
+) -> anyhow::Result<()> {
     let mut components = spec.components.unwrap_or_default();
 
     if let Some(paths) = spec.paths {
@@ -96,17 +116,7 @@ fn main() -> anyhow::Result<()> {
             writeln!(types_file, "{types:#?}")?;
         }
 
-        generate(api, types, template, utf8_output_dir, no_postprocess)?;
+        generate(api, types, template, path, no_postprocess)?;
     }
-
-    match &override_output_dir {
-        Some(p) => println!("done! output written to {}", p.display()),
-        None => println!(
-            "done! output written to {}",
-            // if everything has succeeded (and override_output_dir is None), keep the tempdir for further use
-            tmp_output_dir.into_path().display()
-        ),
-    };
-
     Ok(())
 }
