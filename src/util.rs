@@ -32,8 +32,9 @@ pub(crate) fn run_postprocessing(path: &Utf8Path) {
         match file_ext {
             "py" => &[
                 // fixme: the ordering of the commands is important, maybe ensure the order in a more robust way
-                ("ruff", ["check", "--fix"].as_slice()),
-                ("ruff", ["format"].as_slice()),
+                ("ruff", ["check", "--fix"].as_slice()), // First lint and remove unused imports
+                ("ruff", ["check", "--select", "I", "--fix"].as_slice()), // Then sort imports
+                ("ruff", ["format"].as_slice()),         // Then format the file
             ],
             "rs" => &[(
                 "rustfmt",

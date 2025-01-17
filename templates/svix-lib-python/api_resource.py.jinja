@@ -1,18 +1,14 @@
 {% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_class_name = resource.name | to_upper_camel_case -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
-
 import typing as t
 from datetime import datetime
 from dataclasses import dataclass,asdict
-
 from deprecated import deprecated
 from .common import PostOptions, ApiBase, BaseOptions
 from ..internal.openapi_client.client import AuthenticatedClient
 from ..internal.openapi_client import models
-
 {% if resource.operations | length > 0 %}
-
 from ..internal.openapi_client.api.{{ resource.name | to_snake_case }} import (
     {% for op in resource.operations %}
         {{ op.id | to_snake_case }},
