@@ -46,7 +46,7 @@ enum Command {
 
         /// Set the output dir
         #[clap(long)]
-        override_output_dir: Option<Utf8PathBuf>,
+        output_dir: Option<Utf8PathBuf>,
     },
 }
 
@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
         input_file,
         no_postprocess,
         with_deprecated,
-        override_output_dir: output_dir,
+        output_dir,
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
