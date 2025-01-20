@@ -24,7 +24,6 @@ pub(crate) struct Api {
 impl Api {
     pub(crate) fn new(
         paths: openapi::Paths,
-        with_deprecated: bool,
         component_schemas: &IndexMap<String, openapi::SchemaObject>,
     ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
@@ -40,10 +39,6 @@ impl Api {
             }
 
             for (method, op) in path_item {
-                if !with_deprecated && op.deprecated {
-                    continue;
-                }
-
                 if let Some((res_path, op)) =
                     Operation::from_openapi(&path, method, op, component_schemas)
                 {
