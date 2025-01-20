@@ -40,10 +40,6 @@ enum Command {
         #[clap(long)]
         no_postprocess: bool,
 
-        /// Generate code for deprecated operations, too.
-        #[clap(long)]
-        with_deprecated: bool,
-
         /// Set the output dir
         #[clap(long)]
         output_dir: Option<Utf8PathBuf>,
@@ -58,7 +54,6 @@ fn main() -> anyhow::Result<()> {
         template,
         input_file,
         no_postprocess,
-        with_deprecated,
         output_dir,
     } = args.command;
 
@@ -67,7 +62,7 @@ fn main() -> anyhow::Result<()> {
 
     match &output_dir {
         Some(path) => {
-            analyze_and_generate(spec, template, path, with_deprecated, no_postprocess)?;
+            analyze_and_generate(spec, template, path, no_postprocess)?;
             println!("done! output written to {path}");
         }
         None => {
@@ -83,7 +78,7 @@ fn main() -> anyhow::Result<()> {
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template, path, with_deprecated, no_postprocess)?;
+            analyze_and_generate(spec, template, path, no_postprocess)?;
             // Persist the TempDir if everything was successful
             let path = tmp_output_dir.into_path();
 
@@ -98,13 +93,12 @@ fn analyze_and_generate(
     spec: OpenApi,
     template: String,
     path: &Utf8Path,
-    with_deprecated: bool,
     no_postprocess: bool,
 ) -> anyhow::Result<()> {
     let mut components = spec.components.unwrap_or_default();
 
     if let Some(paths) = spec.paths {
-        let api = Api::new(paths, with_deprecated, &components.schemas).unwrap();
+        let api = Api::new(paths, &components.schemas).unwrap();
         {
             let mut api_file = BufWriter::new(File::create("api.ron")?);
             writeln!(api_file, "{api:#?}")?;
