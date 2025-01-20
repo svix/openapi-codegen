@@ -8,7 +8,7 @@ use minijinja::{context, Template};
 use serde::Deserialize;
 
 use crate::{
-    api::Api,
+    api::{Api, Resource},
     template,
     types::Types,
     util::{parse_frontmatter, run_postprocessing},
@@ -75,9 +75,17 @@ struct Generator<'a> {
 
 impl Generator<'_> {
     fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
-        for (name, resource) in api.resources {
+        self.generate_api_resources_inner(api.resources.values())
+    }
+
+    fn generate_api_resources_inner<'a>(
+        &self,
+        resources: impl Iterator<Item = &'a Resource>,
+    ) -> anyhow::Result<()> {
+        for resource in resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(&name, context! { resource, referenced_components })?;
+            self.render_tpl(&resource.name, context! { resource, referenced_components })?;
+            self.generate_api_resources_inner(resource.subresources.values())?;
         }
 
         Ok(())
