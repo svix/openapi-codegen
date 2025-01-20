@@ -70,16 +70,19 @@ fn get_or_insert_resource(
     path: Vec<String>,
 ) -> &mut Resource {
     let mut path_iter = path.into_iter();
-    let l1_name = path_iter.next().expect("path must be non-empty");
+    let mut name = path_iter.next().expect("path must be non-empty");
     let mut r = resources
-        .entry(l1_name.clone())
-        .or_insert_with(|| Resource::new(l1_name));
+        .entry(name.clone())
+        .or_insert_with(|| Resource::new(name.clone()));
 
-    for name in path_iter {
+    for sub_name in path_iter {
+        name.push('-');
+        name.push_str(&sub_name);
+
         r = r
             .subresources
-            .entry(name.clone())
-            .or_insert_with(|| Resource::new(name));
+            .entry(sub_name)
+            .or_insert_with(|| Resource::new(name.clone()));
     }
 
     r
@@ -88,9 +91,9 @@ fn get_or_insert_resource(
 /// A named group of [`Operation`]s.
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct Resource {
-    name: String,
+    pub name: String,
     operations: Vec<Operation>,
-    subresources: BTreeMap<String, Resource>,
+    pub subresources: BTreeMap<String, Resource>,
     #[debug(skip)] // redundant, but convenient in templates
     has_post_operation: bool,
 }
