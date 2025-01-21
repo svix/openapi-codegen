@@ -1,4 +1,5 @@
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
+{% set resource_self_name = resource.name | to_lower_camel_case %}
 {% set api_type_name %}{{ resource_type_name }}Api{% endset -%}
 // this file is @generated
 package svix
@@ -74,7 +75,7 @@ type {{ resource_type_name }} struct {
 
 	{# separated because it goes in a different place depending on the operation: inner API call #}
 	{% set main_impl -%}
-		req := self.api.{{ resource_type_name }}API.{{ op.id | to_upper_camel_case }}(
+		req := {{ resource_self_name }}.api.{{ resource_type_name }}API.{{ op.id | to_upper_camel_case }}(
 			ctx,
 			{% for p in op.path_params -%}
 				{{ p | to_lower_camel_case }},
@@ -123,11 +124,11 @@ type {{ resource_type_name }} struct {
 
 	{# regular method #}
 	{{ op.description | to_doc_comment(style="go") }}
-	func (self *{{ resource_type_name }}) {{ op_name }}(
+	func ({{ resource_self_name }} *{{ resource_type_name }}) {{ op_name }}(
 		{{ common_args -}}
 	) {{ return_type }} {
 		{% if has_header_params -%}
-			return self.{{ op_name }}WithOptions(
+			return {{ resource_self_name }}.{{ op_name }}WithOptions(
 				ctx,
 				{% for p in op.path_params -%}
 					{{ p | to_lower_camel_case }},
@@ -145,7 +146,7 @@ type {{ resource_type_name }} struct {
 	{# if op has PostOptions: separate OpWithOptions method #}
 	{% if has_header_params -%}
 		{{ op.description | to_doc_comment(style="go") }}
-		func (self *{{ resource_type_name }}) {{ op_name }}WithOptions(
+		func ({{ resource_self_name }} *{{ resource_type_name }}) {{ op_name }}WithOptions(
 			{{ common_args -}}
 			options *PostOptions,
 		) {{ return_type }} {
