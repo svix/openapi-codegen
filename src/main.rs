@@ -30,7 +30,7 @@ enum Command {
     Generate {
         /// The template to use (`.jinja` extension can be omitted).
         #[clap(short, long)]
-        template: String,
+        template: Utf8PathBuf,
 
         /// Path to the input file.
         #[clap(short, long)]
@@ -40,7 +40,7 @@ enum Command {
         #[clap(long)]
         no_postprocess: bool,
 
-        /// Set the output dir
+        /// Path to the output directory.
         #[clap(long)]
         output_dir: Option<Utf8PathBuf>,
     },
@@ -62,29 +62,34 @@ fn main() -> anyhow::Result<()> {
 
     match &output_dir {
         Some(path) => {
-            analyze_and_generate(spec, template, path, no_postprocess)?;
-            println!("done! output written to {path}");
+            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
         }
         None => {
             let output_dir_root = PathBuf::from("out");
             if !output_dir_root.exists() {
                 fs::create_dir(&output_dir_root).context("failed to create out dir")?;
             }
-            let tmp_output_dir =
-                TempDir::new_in(&output_dir_root).context("failed to create tempdir")?;
 
-            // create if doesn't exist
-            let path = tmp_output_dir
+            let tpl_file_name = template
+                .file_name()
+                .context("template must have a file name")?;
+            let prefix = tpl_file_name
+                .strip_suffix(".jinja")
+                .unwrap_or(tpl_file_name);
+
+            let output_dir = TempDir::with_prefix_in(prefix.to_owned() + ".", output_dir_root)
+                .context("failed to create tempdir")?;
+
+            let path = output_dir
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template, path, no_postprocess)?;
-            // Persist the TempDir if everything was successful
-            let path = tmp_output_dir.into_path();
+            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
 
-            println!("done! output written to {}", path.display());
+            // Persist the TempDir if everything was successful
+            _ = output_dir.into_path();
         }
-    };
+    }
 
     Ok(())
 }
@@ -112,5 +117,7 @@ fn analyze_and_generate(
 
         generate(api, types, template, path, no_postprocess)?;
     }
+
+    println!("done! output written to {path}");
     Ok(())
 }
