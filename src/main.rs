@@ -58,11 +58,17 @@ fn main() -> anyhow::Result<()> {
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
+    let input_sha256sum = util::sha256sum_file(&input_file)?;
+    let file_header = format!(
+        "This file is @generated. \nopenapi.json sha256:{input_sha256sum} \nopenapi-codegen git-hash: {}",
+        env!("GIT_HASH")
+    );
+
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
 
     match &output_dir {
         Some(path) => {
-            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
+            analyze_and_generate(spec, template.into(), path, no_postprocess, file_header)?;
         }
         None => {
             let output_dir_root = PathBuf::from("out");
@@ -84,7 +90,7 @@ fn main() -> anyhow::Result<()> {
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
+            analyze_and_generate(spec, template.into(), path, no_postprocess, file_header)?;
 
             // Persist the TempDir if everything was successful
             _ = output_dir.into_path();
@@ -99,6 +105,7 @@ fn analyze_and_generate(
     template: String,
     path: &Utf8Path,
     no_postprocess: bool,
+    file_header: String,
 ) -> anyhow::Result<()> {
     let mut components = spec.components.unwrap_or_default();
 
@@ -115,7 +122,7 @@ fn analyze_and_generate(
             writeln!(types_file, "{types:#?}")?;
         }
 
-        generate(api, types, template, path, no_postprocess)?;
+        generate(api, types, template, path, no_postprocess, file_header)?;
     }
 
     println!("done! output written to {path}");

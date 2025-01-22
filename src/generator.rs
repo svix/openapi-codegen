@@ -35,6 +35,7 @@ pub(crate) fn generate(
     tpl_name: String,
     output_dir: &Utf8Path,
     no_postprocess: bool,
+    file_header: String,
 ) -> anyhow::Result<()> {
     let (tpl_file_ext, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (extension(basename), &tpl_name),
@@ -65,9 +66,9 @@ pub(crate) fn generate(
     };
 
     match tpl_frontmatter.template_kind {
-        TemplateKind::ApiResource => generator.generate_api_resources(api),
-        TemplateKind::ApiSummary => generator.generate_api_summary(api),
-        TemplateKind::Type => generator.generate_types(types),
+        TemplateKind::ApiResource => generator.generate_api_resources(api, file_header),
+        TemplateKind::ApiSummary => generator.generate_api_summary(api, file_header),
+        TemplateKind::Type => generator.generate_types(types, file_header),
     }
 }
 
@@ -79,36 +80,43 @@ struct Generator<'a> {
 }
 
 impl Generator<'_> {
-    fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
-        self.generate_api_resources_inner(api.resources.values())
+    fn generate_api_resources(self, api: Api, file_header: String) -> anyhow::Result<()> {
+        self.generate_api_resources_inner(api.resources.values(), &file_header)
     }
 
     fn generate_api_resources_inner<'a>(
         &self,
         resources: impl Iterator<Item = &'a Resource>,
+        file_header: &str,
     ) -> anyhow::Result<()> {
         for resource in resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(&resource.name, context! { resource, referenced_components })?;
-            self.generate_api_resources_inner(resource.subresources.values())?;
+            self.render_tpl(
+                &resource.name,
+                context! { resource, referenced_components,file_header },
+            )?;
+            self.generate_api_resources_inner(resource.subresources.values(), file_header)?;
         }
 
         Ok(())
     }
 
-    fn generate_api_summary(&self, api: Api) -> anyhow::Result<()> {
+    fn generate_api_summary(&self, api: Api, file_header: String) -> anyhow::Result<()> {
         let name = match self.tpl_file_ext {
             "rs" => "mod",
             "py" => "__init__",
             _ => "summary",
         };
-        self.render_tpl(name, context! { api })
+        self.render_tpl(name, context! { api,file_header })
     }
 
-    fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
+    fn generate_types(self, Types(types): Types, file_header: String) -> anyhow::Result<()> {
         for (name, ty) in types {
             let referenced_components = ty.referenced_components();
-            self.render_tpl(&name, context! { type => ty, referenced_components })?;
+            self.render_tpl(
+                &name,
+                context! { type => ty, referenced_components,file_header },
+            )?;
         }
 
         Ok(())
