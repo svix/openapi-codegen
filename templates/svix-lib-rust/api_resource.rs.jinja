@@ -1,4 +1,3 @@
-{% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
 {% if resource.has_post_operation -%}
