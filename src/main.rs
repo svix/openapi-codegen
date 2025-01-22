@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
-    let input_sha256sum = util::sha256sum_file(&input_file)?;
+    let input_sha256sum = util::sha256sum_string(&spec);
     let file_header = format!(
         "This file is @generated. \nopenapi.json sha256:{input_sha256sum} \nopenapi-codegen git-hash: {}",
         env!("GIT_HASH")

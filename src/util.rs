@@ -1,4 +1,3 @@
-use fs_err::File;
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
@@ -157,10 +156,9 @@ where
     seq.end()
 }
 
-pub(crate) fn sha256sum_file(path: &str) -> anyhow::Result<String> {
-    let mut file = File::open(path)?;
+pub(crate) fn sha256sum_string(s: &str) -> String {
     let mut hasher = Sha256::new();
-    let _ = std::io::copy(&mut file, &mut hasher)?;
+    hasher.update(s.as_bytes());
     let hash = hasher.finalize();
-    Ok(format!("{:x}", hash))
+    format!("{:x}", hash)
 }
