@@ -135,5 +135,15 @@ impl<'a> {{ resource_type_name }}<'a> {
             .execute(self.cfg)
             .await
     }
+
+    {% set extra_path -%}
+        api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.rs
+    {%- endset -%}
+    {% include extra_path ignore missing %}
     {% endfor %}
 }
+
+{% set extra_path -%}
+    api_extra/{{ resource.name | to_snake_case }}.rs
+{%- endset -%}
+{% include extra_path ignore missing %}
