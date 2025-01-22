@@ -1,11 +1,13 @@
 use std::borrow::Cow;
 
+use camino::Utf8Path;
 use heck::{ToLowerCamelCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
 use itertools::Itertools as _;
-use minijinja::value::Kwargs;
+use minijinja::{path_loader, value::Kwargs};
 
-pub(crate) fn env() -> Result<minijinja::Environment<'static>, minijinja::Error> {
+pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
+    env.set_loader(path_loader(tpl_dir));
 
     // Custom filters
     env.add_filter("to_snake_case", |s: Cow<'_, str>| s.to_snake_case());

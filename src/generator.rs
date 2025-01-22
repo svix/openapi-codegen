@@ -36,21 +36,26 @@ pub(crate) fn generate(
     output_dir: &Utf8Path,
     no_postprocess: bool,
 ) -> anyhow::Result<()> {
-    let (tpl_file_ext, tpl_filename) = match tpl_name.strip_suffix(".jinja") {
+    let (tpl_file_ext, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (extension(basename), &tpl_name),
         None => (extension(&tpl_name), &format!("{tpl_name}.jinja")),
     };
 
     let tpl_file_ext = tpl_file_ext.context("template must have a file extension")?;
-    let mut tpl_file = BufReader::new(File::open(Utf8Path::new("templates").join(tpl_filename))?);
+    let tpl_path_full = Utf8Path::new("templates").join(tpl_path);
+    let mut tpl_file = BufReader::new(File::open(&tpl_path_full)?);
 
     let tpl_frontmatter: TemplateFrontmatter = parse_frontmatter(&mut tpl_file)?;
     let mut tpl_source = String::new();
     tpl_file.read_to_string(&mut tpl_source)?;
 
-    let mut minijinja_env = template::env()?;
-    minijinja_env.add_template(tpl_filename, &tpl_source)?;
-    let tpl = minijinja_env.get_template(tpl_filename)?;
+    let mut minijinja_env = template::env(
+        tpl_path_full
+            .parent()
+            .with_context(|| format!("invalid template path `{tpl_path_full}`"))?,
+    )?;
+    minijinja_env.add_template(tpl_path, &tpl_source)?;
+    let tpl = minijinja_env.get_template(tpl_path)?;
 
     let generator = Generator {
         tpl,
