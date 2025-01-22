@@ -69,7 +69,7 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
     {%- if resource.operations | length != 0 %}
         {%- for op in resource.operations %}
             {%- set has_required_options = 
-                (op.query_params | selectattr("required") | length > 0) 
+                (op.query_params | selectattr("required") | length > 0)
                 or op.header_params | selectattr("required") | length > 0 -%}
             {# FIXME: find a better way to deal with python's reserved keywords!, for now i do this hack #}
             {%- if op.name == "import" %}
@@ -112,9 +112,9 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
             {%- endif -%}
             {%- set internal_func_name -%}
                 {% if is_async -%}
-                self._request_asyncio
+                _request_asyncio
                 {%- else -%}
-                self._request_sync
+                _request_sync
                 {%- endif -%}
             {%- endset %}
             # ruff: noqa: F841
