@@ -31,13 +31,13 @@ from ..internal.openapi_client.models.{{ op.response_body_schema_name | to_snake
 @dataclass
 class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOptions):
         {%- for p in op.query_params %}
-            {%- if p.description is defined %}
-    # {{ p.description }}
-            {%- endif -%}
             {%- if p.required %}
     {{ p.name }}: {{ p.type.to_python() }}
             {%- else %}
     {{ p.name }}: t.Optional[{{ p.type.to_python() }}] = None
+            {%- endif -%}
+            {%- if p.description is defined %}
+    {{ p.description | to_doc_comment(style="python") }}
             {%- endif -%}
         {%- endfor %}
     {#- FIXME: hardcoding idempotency-key for now since that is the only header param #}
