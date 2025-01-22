@@ -16,14 +16,8 @@ pub async fn events(
         .with_path_param("app_id", app_id)
         .with_optional_query_param("limit", limit)
         .with_optional_query_param("iterator", iterator)
-        .with_optional_query_param(
-            "event_types",
-            event_types.map(|types| types.into_iter().format(",")),
-        )
-        .with_optional_query_param(
-            "channels",
-            channels.map(|types| types.into_iter().format(",")),
-        )
+        .with_optional_query_param("event_types", event_types)
+        .with_optional_query_param("channels", channels)
         .with_optional_query_param("after", after)
         .execute(self.cfg)
         .await
@@ -52,14 +46,8 @@ pub async fn events_subscription(
     .with_path_param("subscription_id", subscription_id.to_string())
     .with_optional_query_param("limit", limit)
     .with_optional_query_param("iterator", iterator)
-    .with_optional_query_param(
-        "event_types",
-        event_types.map(|types| types.into_iter().format(",")),
-    )
-    .with_optional_query_param(
-        "channels",
-        channels.map(|types| types.into_iter().format(",")),
-    )
+    .with_optional_query_param("event_types", event_types)
+    .with_optional_query_param("channels", channels)
     .with_optional_query_param("after", after)
     .execute(self.cfg)
     .await
