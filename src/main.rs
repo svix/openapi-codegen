@@ -63,7 +63,7 @@ fn main() -> anyhow::Result<()> {
         "This file is @generated.\n\
          openapi.json sha256:{input_sha256sum}\n\
          openapi-codegen git-hash: {}",
-        env!("GIT_HASH")
+        env!("VERGEN_GIT_SHA")
     );
 
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;

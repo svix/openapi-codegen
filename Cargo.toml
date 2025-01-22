@@ -22,3 +22,6 @@ tempfile = "3.14.0"
 toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
+
+[build-dependencies]
+vergen-git2 = "1.0.5"

@@ -1,9 +1,10 @@
-use std::process::Command;
+use vergen_git2::{Emitter, Git2Builder};
+
 fn main() {
-    let output = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output()
+    let git2 = Git2Builder::default().sha(false).build().unwrap();
+    Emitter::new()
+        .add_instructions(&git2)
+        .unwrap()
+        .emit()
         .unwrap();
-    let git_hash = String::from_utf8(output.stdout).unwrap();
-    println!("cargo:rustc-env=GIT_HASH={}", git_hash);
 }
