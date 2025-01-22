@@ -66,7 +66,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
         },
     );
     env.add_filter(
-        "to_multiline_comment",
+        "to_comment",
         |s: Cow<'_, str>, kwargs: Kwargs| -> Result<String, minijinja::Error> {
             let style: Cow<'_, str> = kwargs.get("style")?;
             kwargs.assert_all_used()?;

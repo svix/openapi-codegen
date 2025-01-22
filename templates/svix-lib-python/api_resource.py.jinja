@@ -1,4 +1,4 @@
-{{ file_header | to_multiline_comment(style="python") }}
+{{ file_header | to_comment(style="python") }}
 {% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_class_name = resource.name | to_upper_camel_case -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
