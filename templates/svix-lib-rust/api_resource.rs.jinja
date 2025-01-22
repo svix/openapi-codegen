@@ -1,8 +1,5 @@
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
-{% if resource.has_post_operation -%}
-use super::PostOptions;
-{% endif -%}
 use crate::{
     error::Result,
     models::*,
@@ -10,10 +7,11 @@ use crate::{
 };
 
 {% for op in resource.operations -%}
-    {% if op.query_params | length > 0 -%}
-    {% set has_required_query_params =
-        op.query_params | selectattr("required") | length > 0 -%}
-    {% if not has_required_query_params -%}
+    {% if (op.query_params | length > 0) or (op.header_params | length > 0) %}
+    {% set has_required_params =
+        (op.query_params | selectattr("required") | length > 0) or
+        (op.header_params | selectattr("required") | length > 0) -%}
+    {% if not has_required_params -%}
         #[derive(Default)]
     {% endif -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
@@ -33,7 +31,15 @@ use crate::{
                 /// RFC3339 date string.
                 {% endif -%}
             {% endif -%}
-            pub {{ p.name }}: {{ ty }},
+            pub {{ p.name | to_snake_case }}: {{ ty }},
+        {% endfor -%}
+        {% for p in op.header_params -%}
+            {% set ty = "String" -%}
+            {% if not p.required %}{% set ty %}Option<{{ ty }}>{% endset %}{% endif %}
+            {% if p.description is defined -%}
+                {{ p.description | to_doc_comment(style="rust") }}
+            {% endif -%}
+            pub {{ p.name | to_snake_case }}: {{ ty }},
         {% endfor -%}
     }
     {% endif %}
@@ -49,8 +55,7 @@ impl<'a> {{ resource_type_name }}<'a> {
     }
 
     {% for op in resource.operations %}
-    {% set has_query_params = op.query_params | length > 0 -%}
-    {% set has_header_params = op.header_params | length > 0 -%}
+    {% set has_params = (op.query_params | length > 0) or (op.header_params | length > 0) -%}
     {% if op.description is defined -%}
         {{ op.description | to_doc_comment(style="rust") }}
     {% endif -%}
@@ -70,32 +75,28 @@ impl<'a> {{ resource_type_name }}<'a> {
             {{ op.request_body_schema_name | to_snake_case }}: {{ op.request_body_schema_name }},
         {% endif -%}
 
-        {# query parameter struct -#}
-        {% if has_query_params -%}
-            {% set query_param_type_name -%}
+        {# query / header parameter struct -#}
+        {% if has_params -%}
+            {% set param_struct_name -%}
                 {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
             {%- endset -%}
-            {% set has_required_query_params =
-                op.query_params | selectattr("required") | length > 0 -%}
-            {%- if has_required_query_params -%}
-                options: {{ query_param_type_name }},
+            {% set has_required_params =
+                (op.query_params | selectattr("required") | length > 0) or
+                (op.header_params | selectattr("required") | length > 0) -%}
+            {%- if has_required_params -%}
+                options: {{ param_struct_name }},
             {%- else -%}
-                options: Option<{{ query_param_type_name }}>,
+                options: Option<{{ param_struct_name }}>,
             {%- endif -%}
         {% endif -%}
-
-        {# PostOptions -#}
-        {% if has_header_params -%}
-            {# for now, only idempotency-key is supported for the header -#}
-            options: Option<PostOptions>,
-        {%- endif %}
     ) -> Result<{{ op.response_body_schema_name | default("()") | replace("_", "") }}> {
-        {% if has_query_params -%}
-            {# unpack query parameter struct -#}
-            let {{ query_param_type_name }} {
-                {% for p in op.query_params %}{{ p.name }},{% endfor %}
+        {% if has_params -%}
+            {# unpack query / header parameter struct -#}
+            let {{ param_struct_name }} {
+                {% for p in op.query_params %}{{ p.name | to_snake_case }},{% endfor %}
+                {% for p in op.header_params %}{{ p.name | to_snake_case }},{% endfor %}
             } = options
-            {%- if not has_required_query_params %}.unwrap_or_default(){% endif -%}
+            {%- if not has_required_params %}.unwrap_or_default(){% endif -%}
             ;
         {% endif -%}
 
@@ -117,15 +118,15 @@ impl<'a> {{ resource_type_name }}<'a> {
             {%- else -%}
                 .with_optional_query_param
             {%- endif -%}
-            ("{{ p.name }}", {{ p.name }})
+            ("{{ p.name }}", {{ p.name | to_snake_case }})
+        {% endfor -%}
+
+        {% for p in op.header_params -%}
+            .with_optional_header_param("{{ p.name }}", {{ p.name | to_snake_case }})
         {% endfor -%}
 
         {% if op.request_body_schema_name is defined -%}
             .with_body_param({{ op.request_body_schema_name | to_snake_case }})
-        {% endif -%}
-
-        {% if has_header_params -%}
-            .with_optional_header_param("idempotency-key", idempotency_key)
         {% endif -%}
 
         {% if op.response_body_schema_name is undefined -%}
