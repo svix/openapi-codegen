@@ -17,6 +17,7 @@ minijinja = { version = "2.5.0", features = ["loader"] }
 schemars = "0.8.21"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
+sha2 = "0.10.8"
 tempfile = "3.14.0"
 toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 tracing = "0.1.41"
