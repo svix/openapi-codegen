@@ -160,5 +160,5 @@ pub(crate) fn sha256sum_string(s: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(s.as_bytes());
     let hash = hasher.finalize();
-    format!("{:x}", hash)
+    format!("{hash:x}")
 }
