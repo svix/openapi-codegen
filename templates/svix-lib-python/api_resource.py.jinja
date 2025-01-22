@@ -117,8 +117,10 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
                 _request_sync
                 {%- endif -%}
             {%- endset %}
-            # ruff: noqa: F841
-            response = {% if is_async %}await{% endif %} {{ internal_func_name }}(
+            {% if op.response_body_schema_name is defined -%}
+            response =
+            {%- endif -%}
+            {%- if is_async %}await {% endif %}self.{{ internal_func_name }}(
                 method="{{ op.method }}",
                 path="{{ op.path }}"
                 ,path_params={
