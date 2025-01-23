@@ -4,25 +4,14 @@
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 import typing as t
 from datetime import datetime
-from dataclasses import dataclass,asdict
+from dataclasses import dataclass
 from deprecated import deprecated
-from .common import PostOptions, ApiBase, BaseOptions, serialize_params
-from ..internal.openapi_client.client import AuthenticatedClient
-from ..internal.openapi_client import models
-{% if resource.operations | length > 0 %}
-    {% for op in resource.operations -%}
-    {#-
-    FIXME: this is a hack. i want to be able to export the resource types from this file so i have to import them (not just use models.Resource)
-           But this will result in duplicate import statements. ruff check --fix will remove them, but ideally we find a better way to do this
-     -#}
-        {%- if op.request_body_schema_name is defined %}
-from ..internal.openapi_client.models.{{ op.request_body_schema_name | to_snake_case }} import {{ op.request_body_schema_name | to_upper_camel_case }}
-        {%- endif -%}
-        {%- if op.response_body_schema_name is defined %}
-from ..internal.openapi_client.models.{{ op.response_body_schema_name | to_snake_case }} import {{ op.response_body_schema_name | to_upper_camel_case }}
-        {%- endif -%}
-    {% endfor %}
-{% endif %}
+from .common import ApiBase, BaseOptions, serialize_params
+
+{% for c in referenced_components -%}
+from ..internal.openapi_client.models.{{ c | to_snake_case }} import {{ c | to_upper_camel_case }}
+{% endfor %}
+
 
 {# FIXME: need to understand how this template generates newlines and stop generating newlines #}
 {% for op in resource.operations %}

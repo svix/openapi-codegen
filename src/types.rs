@@ -426,7 +426,7 @@ impl FieldType {
             Self::String => "str".into(),
             Self::DateTime => "datetime".into(),
             Self::Set(field_type) => format!("t.Set[{}]", field_type.to_python_typename()).into(),
-            Self::SchemaRef(name) => format!("models.{name}").into(),
+            Self::SchemaRef(name) => name.clone().into(),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
             Self::List(field_type) => format!("t.List[{}]", field_type.to_python_typename()).into(),
