@@ -7,6 +7,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from deprecated import deprecated
 from .common import ApiBase, BaseOptions, serialize_params
+from ..internal.openapi_client import models
 
 {% for c in referenced_components -%}
 from ..internal.openapi_client.models.{{ c | to_snake_case }} import {{ c | to_upper_camel_case }}
@@ -19,10 +20,13 @@ from ..internal.openapi_client.models.{{ c | to_snake_case }} import {{ c | to_u
 @dataclass
 class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOptions):
         {%- for p in op.query_params %}
+        {%- set p_type_prefix -%}
+        {%- if p.type.is_schema_ref() -%}models.{%- endif %}
+        {%- endset %}
             {%- if p.required %}
-    {{ p.name }}: {{ p.type.to_python() }}
+    {{ p.name }}: {{ p_type_prefix }}{{ p.type.to_python() }}
             {%- else %}
-    {{ p.name }}: t.Optional[{{ p.type.to_python() }}] = None
+    {{ p.name }}: t.Optional[{{ p_type_prefix }}{{ p.type.to_python() }}] = None
             {%- endif -%}
             {%- if p.description is defined %}
     {{ p.description | to_doc_comment(style="python") }}
@@ -49,18 +53,18 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
         {%- endfor %}
         })
         {%- endif %}
-        {% set extra_path -%}
+        {% set api_resource_operation_option_extra -%}
             api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_options.py
         {%- endset %}
-{% include extra_path ignore missing %}
+{% include api_resource_operation_option_extra ignore missing %}
 
     {%- endif -%}
 {%- endfor %}
 
-{% set extra_path -%}
+{% set api_resource_extra -%}
     api_extra/{{ resource.name | to_snake_case }}.py
 {%- endset %}
-{% include extra_path ignore missing %}
+{% include api_resource_extra ignore missing %}
 
 
 {% for is_async in [true, false] %}
@@ -131,16 +135,16 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
             {% if op.response_body_schema_name is defined -%}
             return {{ op.response_body_schema_name | to_upper_camel_case }}.from_dict(response.json())
             {% endif %}
-            {% set extra_path -%}
+            {% set api_operation_extra -%}
                 {% if is_async -%}
                 api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_asyncio.py
                 {%- else -%}
                 api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_sync.py
                 {%- endif -%}
             {% endset %}
-            {% set code %}{% include extra_path ignore missing %}{% endset %}
+            {% set code %}{% include api_operation_extra ignore missing %}{% endset %}
 
-{{ code | indent(4,true) }}
+{{ code | indent(4, true) }}
         {% endfor -%}
     {% else %}
     {# empty class with no functions, so we have a pass here #}
