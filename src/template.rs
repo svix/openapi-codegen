@@ -65,5 +65,6 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             }
         },
     );
+
     Ok(env)
 }
