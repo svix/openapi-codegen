@@ -1,3 +1,4 @@
+# This file is @generated
 {% set api_mod_name %}{{ resource.name | to_snake_case }}_api{% endset -%}
 {% set resource_class_name = resource.name | to_upper_camel_case -%}
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
@@ -5,15 +6,10 @@ import typing as t
 from datetime import datetime
 from dataclasses import dataclass,asdict
 from deprecated import deprecated
-from .common import PostOptions, ApiBase, BaseOptions
+from .common import PostOptions, ApiBase, BaseOptions, serialize_params
 from ..internal.openapi_client.client import AuthenticatedClient
 from ..internal.openapi_client import models
 {% if resource.operations | length > 0 %}
-from ..internal.openapi_client.api.{{ resource.name | to_snake_case }} import (
-    {% for op in resource.operations %}
-        {{ op.id | to_snake_case }},
-    {%- endfor %}
-)
     {% for op in resource.operations -%}
     {#-
     FIXME: this is a hack. i want to be able to export the resource types from this file so i have to import them (not just use models.Resource)
@@ -28,34 +24,53 @@ from ..internal.openapi_client.models.{{ op.response_body_schema_name | to_snake
     {% endfor %}
 {% endif %}
 
-
 {# FIXME: need to understand how this template generates newlines and stop generating newlines #}
 {% for op in resource.operations %}
-    {% if op.query_params | length > 0 or op.header_params | length > 0 %}
+    {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
+
 @dataclass
 class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOptions):
         {%- for p in op.query_params %}
-            {%- if p.description is defined %}
-    # {{ p.description }}
-            {%- endif %}
             {%- if p.required %}
     {{ p.name }}: {{ p.type.to_python() }}
             {%- else %}
     {{ p.name }}: t.Optional[{{ p.type.to_python() }}] = None
-            {%- endif %}
+            {%- endif -%}
+            {%- if p.description is defined %}
+    {{ p.description | to_doc_comment(style="python") }}
+            {%- endif -%}
         {%- endfor %}
-    {# FIXME: hardcoding idempotency-key for now since that is the only header param #}
+    {#- FIXME: hardcoding idempotency-key for now since that is the only header param #}
         {%- if op.header_params | length > 0 %}
     idempotency_key: t.Optional[str] = None
         {%- endif %}
-    {%- endif %}
+        {%- if op.query_params | length > 0 %}
+    def _query_params(self) -> t.Dict[str, str]:
+        return serialize_params({
+        {%- for p in op.query_params %}
+            "{{ p.name }}": self.{{ p.name | to_snake_case}},
+        {%- endfor %}
+        })
+        {%- endif %}
+
+        {%- if op.header_params | length > 0 %}
+    def _header_params(self) -> t.Dict[str, str]:
+        return serialize_params({
+        {%- for p in op.header_params %}
+            "{{ p.name }}": self.{{ p.name | to_snake_case}},
+        {%- endfor %}
+        })
+        {%- endif %}
+    {%- endif -%}
 {%- endfor %}
 
-
-{%- for is_async in [true, false] %}
+{% for is_async in [true, false] %}
 class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}(ApiBase):
     {%- if resource.operations | length != 0 %}
         {%- for op in resource.operations %}
+            {%- set has_required_options = 
+                (op.query_params | selectattr("required") | length > 0)
+                or op.header_params | selectattr("required") | length > 0 -%}
             {# FIXME: find a better way to deal with python's reserved keywords!, for now i do this hack #}
             {%- if op.name == "import" %}
                 {%- set op_name = "import_" %}
@@ -82,10 +97,11 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
 
             {# add query_options type #}
             {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
-        ,options: {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options = {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options()
+            {% set resource_operation_option %}{{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options{% endset %}
+        ,options: {{ resource_operation_option }}{% if not has_required_options %} = {{ resource_operation_option }}(){% endif %}
             {%- endif %}
 
-    ) -> 
+    ) ->
             {%- if op.response_body_schema_name is defined -%}
             {{ op.response_body_schema_name | to_upper_camel_case }}:
             {% else -%}
@@ -95,23 +111,33 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
     {{ op.description | to_doc_comment(style="python") }}
             {%- endif -%}
             {%- set internal_func_name -%}
-                {{ op.id | to_snake_case }}{% if is_async -%}.request_asyncio{% else -%}.request_sync{% endif -%}
-            {%- endset -%}
-            {% set ret -%}
-                {%- if is_async -%}return await{% else %}return{% endif -%}
+                {% if is_async -%}
+                _request_asyncio
+                {%- else -%}
+                _request_sync
+                {%- endif -%}
             {%- endset %}
-            {{ ret }} {{ internal_func_name }}(client=self._client
-            {%- for p in op.path_params -%}
-,{{ p }}={{ p }}
-            {%- endfor -%}
-            {% if op.request_body_schema_name is defined -%}
-,json_body={{ op.request_body_schema_name | to_snake_case }}
-            {% endif -%}
-            {% if (op.query_params | length > 0 )or (op.header_params | length > 0) %}
-            {# FIXME: how do we know there is no duplicate options in the path params #}
-,**options.to_dict()
-            {% endif -%}
-)
+            {% if op.response_body_schema_name is defined -%}
+            response =
+            {%- endif -%}
+            {%- if is_async %}await {% endif %}self.{{ internal_func_name }}(
+                method="{{ op.method }}",
+                path="{{ op.path }}"
+                ,path_params={
+                {%- for path_param in op.path_params %}
+                    "{{ path_param }}":{{ path_param }},
+                {% endfor -%}
+                }
+                {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
+                ,query_params=options._query_params()
+                ,header_params=options._header_params()
+                {%- endif %}
+                {% if op.request_body_schema_name is defined -%}
+                ,json_body={{ op.request_body_schema_name | to_snake_case }}.to_dict()
+                {%- endif -%})
+            {% if op.response_body_schema_name is defined -%}
+            return {{ op.response_body_schema_name | to_upper_camel_case }}.from_dict(response.json())
+            {% endif %}
         {% endfor -%}
     {% else %}
     {# empty class with no functions, so we have a pass here #}
