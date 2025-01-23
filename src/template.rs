@@ -65,28 +65,5 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             }
         },
     );
-    env.add_filter(
-        "to_comment",
-        |s: Cow<'_, str>, kwargs: Kwargs| -> Result<String, minijinja::Error> {
-            let style: Cow<'_, str> = kwargs.get("style")?;
-            kwargs.assert_all_used()?;
-
-            let prefix = match &*style {
-                "python" => "#",
-                "go" | "rust" | "kotlin" | "javascript" | "js" | "ts" | "typescript" => "//",
-                _ => {
-                    return Err(minijinja::Error::new(
-                        minijinja::ErrorKind::UndefinedError,
-                        "unsupported multiline comment style",
-                    ))
-                }
-            };
-
-            Ok(s.lines()
-                .format_with("\n", |line, f| f(&format_args!("{prefix} {line}")))
-                .to_string())
-        },
-    );
-
     Ok(env)
 }
