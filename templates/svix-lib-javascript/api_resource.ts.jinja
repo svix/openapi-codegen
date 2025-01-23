@@ -80,7 +80,7 @@ export class {{ resource_type_name }} {
                 {% endif -%}
 
                 {# query parameters, PostOptions -#}
-                {% if has_query_params or has_header_params -%}
+                {% if op | has_query_or_header_params -%}
                     ...options,
                     {# HACK: coerce some null query params to undefined -#}
                     {% for p in op.query_params -%}

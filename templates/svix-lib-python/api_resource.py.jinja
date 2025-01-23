@@ -26,8 +26,7 @@ from ..internal.openapi_client.models.{{ op.response_body_schema_name | to_snake
 
 {# FIXME: need to understand how this template generates newlines and stop generating newlines #}
 {% for op in resource.operations %}
-    {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
-
+    {%- if op | has_query_or_header_params %}
 @dataclass
 class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOptions):
         {%- for p in op.query_params %}
@@ -68,9 +67,6 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
 class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}(ApiBase):
     {%- if resource.operations | length != 0 %}
         {%- for op in resource.operations %}
-            {%- set has_required_options = 
-                (op.query_params | selectattr("required") | length > 0)
-                or op.header_params | selectattr("required") | length > 0 -%}
             {# FIXME: find a better way to deal with python's reserved keywords!, for now i do this hack #}
             {%- if op.name == "import" %}
                 {%- set op_name = "import_" %}
@@ -96,9 +92,9 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
             {%- endif %}
 
             {# add query_options type #}
-            {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
+            {%- if op | has_query_or_header_params %}
             {% set resource_operation_option %}{{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options{% endset %}
-        ,options: {{ resource_operation_option }}{% if not has_required_options %} = {{ resource_operation_option }}(){% endif %}
+        ,options: {{ resource_operation_option }}{% if not op | has_required_query_or_header_params %} = {{ resource_operation_option }}(){% endif %}
             {%- endif %}
 
     ) ->
@@ -128,7 +124,7 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
                     "{{ path_param }}":{{ path_param }},
                 {% endfor -%}
                 }
-                {%- if op.query_params | length > 0 or op.header_params | length > 0 %}
+                {%- if op | has_query_or_header_params %}
                 ,query_params=options._query_params()
                 ,header_params=options._header_params()
                 {%- endif %}
