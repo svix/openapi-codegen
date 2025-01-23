@@ -67,6 +67,11 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
 class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}(ApiBase):
     {%- if resource.operations | length != 0 %}
         {%- for op in resource.operations %}
+            {% if op.response_body_schema_name is defined -%}
+                {% set return_type = op.response_body_schema_name | to_upper_camel_case -%}
+            {% else -%}
+                {% set return_type = "None" -%}
+            {% endif -%}
             {# FIXME: find a better way to deal with python's reserved keywords!, for now i do this hack #}
             {%- if op.name == "import" %}
                 {%- set op_name = "import_" %}
@@ -77,11 +82,9 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
     @deprecated
             {%- endif %}
             {%- if is_async -%}
-                {%- set func_def = "async def" %}
-            {%- else %}
-                {%- set func_def = "def" %}
+                {%- set async = "async " %}
             {%- endif %}
-    {{ func_def }} {{ op_name }}(self
+    {{ async -}} def {{ op_name }}(self
             {#- path parameters are non optional strings #}
             {% for p in op.path_params -%}
         ,{{ p }}: str
@@ -96,13 +99,7 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
             {% set resource_operation_option %}{{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options{% endset %}
         ,options: {{ resource_operation_option }}{% if not op | has_required_query_or_header_params %} = {{ resource_operation_option }}(){% endif %}
             {%- endif %}
-
-    ) ->
-            {%- if op.response_body_schema_name is defined -%}
-            {{ op.response_body_schema_name | to_upper_camel_case }}:
-            {% else -%}
-            None:
-            {%- endif %}
+    ) -> {{ return_type }}:
             {% if op.description is defined -%}
     {{ op.description | to_doc_comment(style="python") }}
             {%- endif -%}
