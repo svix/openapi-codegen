@@ -57,6 +57,12 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
     {%- endif -%}
 {%- endfor %}
 
+{% set extra_path -%}
+    api_extra/{{ resource.name | to_snake_case }}.py
+{%- endset %}
+{% include extra_path ignore missing %}
+
+
 {% for is_async in [true, false] %}
 class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}(ApiBase):
     {%- if resource.operations | length != 0 %}
