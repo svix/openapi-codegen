@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     io::{BufRead, ErrorKind, Seek},
@@ -153,4 +154,11 @@ where
         seq.serialize_element(item)?;
     }
     seq.end()
+}
+
+pub(crate) fn sha256sum_string(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    let hash = hasher.finalize();
+    format!("{hash:x}")
 }
