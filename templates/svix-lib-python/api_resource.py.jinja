@@ -141,9 +141,11 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
                 api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_asyncio.py
                 {%- else -%}
                 api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_sync.py
-                {%- endif %}
-            {%- endset %}
-{% include extra_path ignore missing %}
+                {%- endif -%}
+            {% endset %}
+            {% set code %}{% include extra_path ignore missing %}{% endset %}
+
+{{ code | indent(4,true) }}
         {% endfor -%}
     {% else %}
     {# empty class with no functions, so we have a pass here #}
