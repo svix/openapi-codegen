@@ -127,11 +127,13 @@ fn analyze_and_generate(
 
 fn write_codegen_metadata(input_sha256sum: String, output_dir: &Utf8Path) -> anyhow::Result<()> {
     let metadata_path = output_dir.join("codegen.json");
+    let current_timestamp = chrono::Utc::now().to_rfc3339();
     let codegen_metadata = serde_json::json!(
         {
             "openapi-codegen-version": env!("CARGO_PKG_VERSION"),
             "openapi.json-sha256": input_sha256sum,
-            "git-hash": env!("VERGEN_GIT_SHA")
+            "git-hash": env!("VERGEN_GIT_SHA"),
+            "file_generated_at": current_timestamp
         }
     );
     let encoded_metadata = serde_json::to_vec_pretty(&codegen_metadata)?;
