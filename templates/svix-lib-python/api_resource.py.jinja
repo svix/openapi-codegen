@@ -60,6 +60,11 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
         {%- endfor %}
         })
         {%- endif %}
+        {% set extra_path -%}
+            api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_options.py
+        {%- endset %}
+{% include extra_path ignore missing %}
+
     {%- endif -%}
 {%- endfor %}
 
@@ -131,6 +136,14 @@ class {{ resource.name | to_upper_camel_case }}{% if is_async %}Async{% endif %}
             {% if op.response_body_schema_name is defined -%}
             return {{ op.response_body_schema_name | to_upper_camel_case }}.from_dict(response.json())
             {% endif %}
+            {% set extra_path -%}
+                {% if is_async -%}
+                api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_asyncio.py
+                {%- else -%}
+                api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_sync.py
+                {%- endif %}
+            {%- endset %}
+{% include extra_path ignore missing %}
         {% endfor -%}
     {% else %}
     {# empty class with no functions, so we have a pass here #}
