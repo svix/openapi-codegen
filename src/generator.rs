@@ -27,6 +27,7 @@ enum TemplateKind {
     ApiResource,
     ApiSummary,
     Type,
+    TypeSummary,
 }
 
 pub(crate) fn generate(
@@ -68,6 +69,7 @@ pub(crate) fn generate(
         TemplateKind::ApiResource => generator.generate_api_resources(api),
         TemplateKind::ApiSummary => generator.generate_api_summary(api),
         TemplateKind::Type => generator.generate_types(types),
+        TemplateKind::TypeSummary => generator.generate_type_summary(types),
     }
 }
 
@@ -104,6 +106,14 @@ impl Generator<'_> {
         };
         self.render_tpl(name, context! { api })
     }
+    fn generate_type_summary(&self, Types(types): Types) -> anyhow::Result<()> {
+        let name = match self.tpl_file_ext {
+            "rs" => "mod",
+            "py" => "__init__",
+            _ => "summary",
+        };
+        self.render_tpl(name, context! { types })
+    }
 
     fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
         for (name, ty) in types {
@@ -118,6 +128,13 @@ impl Generator<'_> {
         let tpl_file_ext = self.tpl_file_ext;
         let basename = match tpl_file_ext {
             "cs" | "java" | "kt" => output_name.to_upper_camel_case(),
+            "py" => {
+                if output_name == "__init__" {
+                    output_name.into()
+                } else {
+                    output_name.to_snake_case()
+                }
+            }
             _ => output_name.to_snake_case(),
         };
 
