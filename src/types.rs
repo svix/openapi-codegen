@@ -7,7 +7,7 @@ use std::{
 use aide::openapi;
 use anyhow::{bail, ensure, Context as _};
 use indexmap::IndexMap;
-use schemars::schema::{InstanceType, Schema, SchemaObject, SingleOrVec};
+use schemars::schema::{InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec};
 use serde::Serialize;
 
 use crate::util::get_schema_name;
@@ -75,47 +75,27 @@ pub(crate) struct Type {
 
 impl Type {
     pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Self> {
-        match s.instance_type {
+        let data = match s.instance_type {
             Some(SingleOrVec::Single(it)) => match *it {
-                InstanceType::Object => {}
+                InstanceType::Object => {
+                    let obj = s
+                        .object
+                        .context("unsupported: object type without further validation")?;
+                    TypeData::from_object_schema(*obj)?
+                }
                 _ => bail!("unsupported type {it:?}"),
             },
             Some(SingleOrVec::Vec(_)) => bail!("unsupported: multiple types"),
             None => bail!("unsupported: no type"),
-        }
+        };
 
         let metadata = s.metadata.unwrap_or_default();
-
-        let obj = s
-            .object
-            .context("unsupported: object type without further validation")?;
-
-        ensure!(
-            obj.additional_properties.is_none(),
-            "additional_properties not yet supported"
-        );
-        ensure!(obj.max_properties.is_none(), "unsupported: max_properties");
-        ensure!(obj.min_properties.is_none(), "unsupported: min_properties");
-        ensure!(
-            obj.pattern_properties.is_empty(),
-            "unsupported: pattern_properties"
-        );
-        ensure!(obj.property_names.is_none(), "unsupported: property_names");
 
         Ok(Self {
             name,
             description: metadata.description,
             deprecated: metadata.deprecated,
-            data: TypeData::Struct {
-                fields: obj
-                    .properties
-                    .into_iter()
-                    .map(|(name, schema)| {
-                        Field::from_schema(name.clone(), schema, obj.required.contains(&name))
-                            .with_context(|| format!("unsupported field {name}"))
-                    })
-                    .collect::<anyhow::Result<_>>()?,
-            },
+            data,
         })
     }
 
@@ -144,6 +124,33 @@ pub(crate) enum TypeData {
     Enum {
         variants: Vec<Variant>,
     },
+}
+
+impl TypeData {
+    fn from_object_schema(obj: ObjectValidation) -> anyhow::Result<Self> {
+        ensure!(
+            obj.additional_properties.is_none(),
+            "additional_properties not yet supported"
+        );
+        ensure!(obj.max_properties.is_none(), "unsupported: max_properties");
+        ensure!(obj.min_properties.is_none(), "unsupported: min_properties");
+        ensure!(
+            obj.pattern_properties.is_empty(),
+            "unsupported: pattern_properties"
+        );
+        ensure!(obj.property_names.is_none(), "unsupported: property_names");
+
+        Ok(Self::Struct {
+            fields: obj
+                .properties
+                .into_iter()
+                .map(|(name, schema)| {
+                    Field::from_schema(name.clone(), schema, obj.required.contains(&name))
+                        .with_context(|| format!("unsupported field {name}"))
+                })
+                .collect::<anyhow::Result<_>>()?,
+        })
+    }
 }
 
 #[derive(Debug, Serialize)]
