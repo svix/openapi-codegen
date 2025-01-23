@@ -25,4 +25,4 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 
 [build-dependencies]
-vergen-git2 = "1.0.5"
+vergen-gitcl = "1.0.5"
