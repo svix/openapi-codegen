@@ -83,6 +83,12 @@ impl Type {
                         .context("unsupported: object type without further validation")?;
                     TypeData::from_object_schema(*obj)?
                 }
+                InstanceType::String => {
+                    let values = s
+                        .enum_values
+                        .context("unsupported: string type without enum values")?;
+                    TypeData::from_string_enum(values)?
+                }
                 _ => bail!("unsupported type {it:?}"),
             },
             Some(SingleOrVec::Vec(_)) => bail!("unsupported: multiple types"),
@@ -105,7 +111,8 @@ impl Type {
                 .iter()
                 .filter_map(|f| f.r#type.referenced_schema())
                 .collect(),
-            TypeData::Enum { variants } => variants
+            TypeData::StringEnum { .. } => BTreeSet::new(),
+            TypeData::StructEnum { variants } => variants
                 .iter()
                 .flat_map(|v| &v.fields)
                 .filter_map(|f| f.r#type.referenced_schema())
@@ -115,13 +122,16 @@ impl Type {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum TypeData {
     Struct {
         fields: Vec<Field>,
     },
+    StringEnum {
+        values: Vec<String>,
+    },
     #[allow(dead_code)] // not _yet_ supported
-    Enum {
+    StructEnum {
         variants: Vec<Variant>,
     },
 }
@@ -147,6 +157,19 @@ impl TypeData {
                 .map(|(name, schema)| {
                     Field::from_schema(name.clone(), schema, obj.required.contains(&name))
                         .with_context(|| format!("unsupported field {name}"))
+                })
+                .collect::<anyhow::Result<_>>()?,
+        })
+    }
+
+    fn from_string_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
+        Ok(Self::StringEnum {
+            values: values
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| match v {
+                    serde_json::Value::String(s) => Ok(s),
+                    _ => bail!("enum value {} is not a string", i + 1),
                 })
                 .collect::<anyhow::Result<_>>()?,
         })
