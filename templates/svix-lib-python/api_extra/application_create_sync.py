@@ -1,7 +1,7 @@
 def get_or_create(
     self,
     application_in: ApplicationIn,
-    options: ApplicationGetOrCreateOptions = ApplicationGetOrCreateOptions(),
+    options: ApplicationCreateOptions = ApplicationCreateOptions(),
 ) -> ApplicationOut:
     # ruff: noqa: F841
     response = self._request_sync(

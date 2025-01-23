@@ -1,7 +1,7 @@
 async def get_or_create(
     self,
     application_in: ApplicationIn,
-    options: ApplicationGetOrCreateOptions = ApplicationGetOrCreateOptions(),
+    options: ApplicationCreateOptions = ApplicationCreateOptions(),
 ) -> ApplicationOut:
     response = await self._request_asyncio(
         method="post",

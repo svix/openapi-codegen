@@ -53,10 +53,6 @@ class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(BaseOpt
         {%- endfor %}
         })
         {%- endif %}
-        {% set api_resource_operation_option_extra -%}
-            api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}_options.py
-        {%- endset %}
-{% include api_resource_operation_option_extra ignore missing %}
 
     {%- endif -%}
 {%- endfor %}
