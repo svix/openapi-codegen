@@ -126,7 +126,7 @@ fn analyze_and_generate(
 }
 
 fn write_codegen_metadata(input_sha256sum: String, output_dir: &Utf8Path) -> anyhow::Result<()> {
-    let metadata_path = output_dir.join("codegen.json");
+    let metadata_path = output_dir.join(".codegen.json");
     let current_timestamp = chrono::Utc::now().to_rfc3339();
     let codegen_metadata = serde_json::json!({
         "openapi-codegen-version": env!("CARGO_PKG_VERSION"),
