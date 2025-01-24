@@ -1,6 +1,6 @@
-use std::io::{BufReader, BufWriter, Read};
+use std::{fs, io::BufWriter};
 
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use camino::Utf8Path;
 use fs_err::File;
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
@@ -11,14 +11,8 @@ use crate::{
     api::{Api, Resource},
     template,
     types::Types,
-    util::{parse_frontmatter, run_postprocessing},
+    util::run_postprocessing,
 };
-
-#[derive(Default, Deserialize)]
-struct TemplateFrontmatter {
-    #[serde(default)]
-    template_kind: TemplateKind,
-}
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -37,18 +31,30 @@ pub(crate) fn generate(
     output_dir: &Utf8Path,
     no_postprocess: bool,
 ) -> anyhow::Result<()> {
-    let (tpl_file_ext, tpl_path) = match tpl_name.strip_suffix(".jinja") {
-        Some(basename) => (extension(basename), &tpl_name),
-        None => (extension(&tpl_name), &format!("{tpl_name}.jinja")),
+    let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
+        Some(basename) => (basename, &tpl_name),
+        None => (tpl_name.as_str(), &format!("{tpl_name}.jinja")),
     };
 
-    let tpl_file_ext = tpl_file_ext.context("template must have a file extension")?;
     let tpl_path_full = Utf8Path::new("templates").join(tpl_path);
-    let mut tpl_file = BufReader::new(File::open(&tpl_path_full)?);
+    let (tpl_base_name, tpl_file_ext) = Utf8Path::new(name_without_jinja_suffix)
+        .file_name()
+        .context("template name must not end in '/'")?
+        .rsplit_once(".")
+        .context("template name must contain '.'")?;
 
-    let tpl_frontmatter: TemplateFrontmatter = parse_frontmatter(&mut tpl_file)?;
-    let mut tpl_source = String::new();
-    tpl_file.read_to_string(&mut tpl_source)?;
+    let tpl_kind = match tpl_base_name {
+        "api_resource" => TemplateKind::ApiResource,
+        "api_summary" => TemplateKind::ApiSummary,
+        "component_type" => TemplateKind::Type,
+        "component_type_summary" => TemplateKind::TypeSummary,
+        _ => bail!(
+            "template file basename must be one of 'api_resource', 'api_summary', \
+             'component_type', 'component_type_summary'",
+        ),
+    };
+
+    let tpl_source = fs::read_to_string(&tpl_path_full)?;
 
     let mut minijinja_env = template::env(
         tpl_path_full
@@ -65,7 +71,7 @@ pub(crate) fn generate(
         no_postprocess,
     };
 
-    match tpl_frontmatter.template_kind {
+    match tpl_kind {
         TemplateKind::ApiResource => generator.generate_api_resources(api),
         TemplateKind::ApiSummary => generator.generate_api_summary(api),
         TemplateKind::Type => generator.generate_types(types),
@@ -148,8 +154,4 @@ impl Generator<'_> {
 
         Ok(())
     }
-}
-
-fn extension(filename: &str) -> Option<&str> {
-    Utf8Path::new(filename).extension()
 }
