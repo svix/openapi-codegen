@@ -15,6 +15,12 @@ pub struct {{ type.name | to_upper_camel_case }} {
     {% for field in type.fields %}
         {% if field.description is defined -%}
             {{ field.description | to_doc_comment(style="rust") }}
+            {# we currently use String for date-time params, for backwards compat -#}
+            {# document the format so it's not _that_ awkward -#}
+            {% if field.type.is_datetime() -%}
+            ///
+            /// RFC3339 date string.
+            {% endif -%}
         {% endif -%}
 
         {% if field.deprecated -%}
@@ -33,7 +39,11 @@ pub struct {{ type.name | to_upper_camel_case }} {
         {# {% if field.default is defined and field.default is not none -%}
         #[serde(default = "{{ field.name | to_snake_case }}_default")]
         {% endif -%} -#}
-        {% set field_ty = field.type.to_rust() -%}
+        {% if field.type.is_datetime() -%}
+            {% set field_ty = "String" -%}
+        {% else -%}
+            {% set field_ty = field.type.to_rust() -%}
+        {% endif -%}
 
         {% if not field.required -%}
             {# only for patch requests, if the field is both non-required
@@ -54,8 +64,13 @@ pub struct {{ type.name | to_upper_camel_case }} {
 impl {{ type.name | to_upper_camel_case }} {
     pub fn new(
         {% for field in type.fields -%}
+            {% if field.type.is_datetime() -%}
+                {% set field_ty = "String" -%}
+            {% else -%}
+                {% set field_ty = field.type.to_rust() -%}
+            {% endif -%}
             {% if field.required -%}
-                {{ field.name | to_snake_case }}: {{ field.type.to_rust() }},
+                {{ field.name | to_snake_case }}: {{ field_ty }},
             {% endif -%}
         {% endfor -%}
     ) -> Self {
