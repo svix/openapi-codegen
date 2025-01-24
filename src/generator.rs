@@ -104,6 +104,15 @@ impl Generator<'_> {
         Ok(())
     }
 
+    fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
+        for (name, ty) in types {
+            let referenced_components = ty.referenced_components();
+            self.render_tpl(&name, context! { type => ty, referenced_components })?;
+        }
+
+        Ok(())
+    }
+
     fn generate_api_summary(&self, api: Api) -> anyhow::Result<()> {
         let name = match self.tpl_file_ext {
             "rs" => "mod",
@@ -112,6 +121,7 @@ impl Generator<'_> {
         };
         self.render_tpl(name, context! { api })
     }
+
     fn generate_type_summary(&self, Types(types): Types) -> anyhow::Result<()> {
         let name = match self.tpl_file_ext {
             "rs" => "mod",
@@ -119,15 +129,6 @@ impl Generator<'_> {
             _ => "summary",
         };
         self.render_tpl(name, context! { types })
-    }
-
-    fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
-        for (name, ty) in types {
-            let referenced_components = ty.referenced_components();
-            self.render_tpl(&name, context! { type => ty, referenced_components })?;
-        }
-
-        Ok(())
     }
 
     fn render_tpl(&self, output_name: &str, ctx: minijinja::Value) -> anyhow::Result<()> {
