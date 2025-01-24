@@ -1,6 +1,6 @@
 // this file is @generated
 {% if type.description is defined -%}
-{% set doc_comment = type.description | to_doc_comment(style="rust") %}
+{% set doc_comment = type.description | to_doc_comment(style="rust") -%}
 {% endif -%}
 
 {% if type.kind == "struct" -%}
