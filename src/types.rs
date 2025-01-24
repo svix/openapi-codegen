@@ -83,6 +83,12 @@ impl Type {
                         .context("unsupported: object type without further validation")?;
                     TypeData::from_object_schema(*obj)?
                 }
+                InstanceType::Integer => {
+                    let values = s
+                        .enum_values
+                        .context("unsupported: integer type without enum values")?;
+                    TypeData::from_integer_enum(values)?
+                }
                 InstanceType::String => {
                     let values = s
                         .enum_values
@@ -112,6 +118,7 @@ impl Type {
                 .filter_map(|f| f.r#type.referenced_schema())
                 .collect(),
             TypeData::StringEnum { .. } => BTreeSet::new(),
+            TypeData::IntegerEnum { .. } => BTreeSet::new(),
             TypeData::StructEnum { variants } => variants
                 .iter()
                 .flat_map(|v| &v.fields)
@@ -129,6 +136,9 @@ pub(crate) enum TypeData {
     },
     StringEnum {
         values: Vec<String>,
+    },
+    IntegerEnum {
+        values: Vec<i64>,
     },
     #[allow(dead_code)] // not _yet_ supported
     StructEnum {
@@ -170,6 +180,21 @@ impl TypeData {
                 .map(|(i, v)| match v {
                     serde_json::Value::String(s) => Ok(s),
                     _ => bail!("enum value {} is not a string", i + 1),
+                })
+                .collect::<anyhow::Result<_>>()?,
+        })
+    }
+
+    fn from_integer_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
+        Ok(Self::IntegerEnum {
+            values: values
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| match v {
+                    serde_json::Value::Number(s) => s
+                        .as_i64()
+                        .with_context(|| format!("enum value {s} is not an integer")),
+                    _ => bail!("enum value {} is not a number", i + 1),
                 })
                 .collect::<anyhow::Result<_>>()?,
         })
