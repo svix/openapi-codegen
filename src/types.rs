@@ -140,7 +140,6 @@ pub(crate) enum TypeData {
     IntegerEnum {
         values: Vec<i64>,
     },
-
     #[allow(dead_code)] // not _yet_ supported
     StructEnum {
         variants: Vec<Variant>,
@@ -185,6 +184,7 @@ impl TypeData {
                 .collect::<anyhow::Result<_>>()?,
         })
     }
+
     fn from_integer_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
         Ok(Self::IntegerEnum {
             values: values
