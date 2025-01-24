@@ -160,3 +160,8 @@ type {{ resource_type_name }} struct {
 	{%- endset -%}
 	{% include extra_path ignore missing %}
 {% endfor -%}
+
+{% set extra_path -%}
+	api_extra/{{ resource.name | to_snake_case }}.go
+{%- endset -%}
+{% include extra_path ignore missing %}
