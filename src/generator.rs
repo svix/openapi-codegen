@@ -97,7 +97,10 @@ impl Generator<'_> {
     ) -> anyhow::Result<()> {
         for resource in resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(&resource.name, context! { resource, referenced_components })?;
+            self.render_tpl(
+                Some(&resource.name),
+                context! { resource, referenced_components },
+            )?;
             self.generate_api_resources_inner(resource.subresources.values())?;
         }
 
@@ -107,42 +110,29 @@ impl Generator<'_> {
     fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
         for (name, ty) in types {
             let referenced_components = ty.referenced_components();
-            self.render_tpl(&name, context! { type => ty, referenced_components })?;
+            self.render_tpl(Some(&name), context! { type => ty, referenced_components })?;
         }
 
         Ok(())
     }
 
     fn generate_api_summary(&self, api: Api) -> anyhow::Result<()> {
-        let name = match self.tpl_file_ext {
-            "rs" => "mod",
-            "py" => "__init__",
-            _ => "summary",
-        };
-        self.render_tpl(name, context! { api })
+        self.render_tpl(None, context! { api })
     }
 
     fn generate_type_summary(&self, Types(types): Types) -> anyhow::Result<()> {
-        let name = match self.tpl_file_ext {
-            "rs" => "mod",
-            "py" => "__init__",
-            _ => "summary",
-        };
-        self.render_tpl(name, context! { types })
+        self.render_tpl(None, context! { types })
     }
 
-    fn render_tpl(&self, output_name: &str, ctx: minijinja::Value) -> anyhow::Result<()> {
+    fn render_tpl(&self, output_name: Option<&str>, ctx: minijinja::Value) -> anyhow::Result<()> {
         let tpl_file_ext = self.tpl_file_ext;
-        let basename = match tpl_file_ext {
-            "cs" | "java" | "kt" => output_name.to_upper_camel_case(),
-            "py" => {
-                if output_name == "__init__" {
-                    output_name.into()
-                } else {
-                    output_name.to_snake_case()
-                }
-            }
-            _ => output_name.to_snake_case(),
+        let basename = match (output_name, tpl_file_ext) {
+            (Some(name), "cs" | "java" | "kt") => name.to_upper_camel_case(),
+            (Some(name), _) => name.to_snake_case(),
+            (None, "py") => "__init__".to_owned(),
+            (None, "rs") => "mod".to_owned(),
+            (None, "cs" | "java" | "kt") => "Summary".to_owned(),
+            (None, _) => "summary".to_owned(),
         };
 
         let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
