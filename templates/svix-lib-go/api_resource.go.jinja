@@ -154,4 +154,9 @@ type {{ resource_type_name }} struct {
 			{{ main_impl -}}
 		}
 	{% endif %}
+
+	{% set extra_path -%}
+		api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.go
+	{%- endset -%}
+	{% include extra_path ignore missing %}
 {% endfor -%}
