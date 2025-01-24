@@ -1,6 +1,3 @@
-+++
-template_kind = "api_summary"
-+++
 {% for resource in api.resources -%}
     mod {{ resource.name | to_snake_case }};
 {% endfor %}
