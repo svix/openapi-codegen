@@ -7,4 +7,3 @@ from .{{ resource.name | to_snake_case }} import {{ resource_type_name }}{{ asyn
 from .{{ resource.name | to_snake_case }} import {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
     {%- endif -%}
 {%- endfor -%}
-
