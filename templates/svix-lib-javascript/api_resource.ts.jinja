@@ -1,14 +1,12 @@
 // this file is @generated
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
-{% set api_type_name %}{{ resource_type_name }}Api{% endset -%}
 
 import {
-    Configuration,
-    {{ api_type_name }},
     {% for c in referenced_components -%}
         {{ c | to_upper_camel_case }},
     {% endfor -%}
 } from "../openapi";
+import { HttpMethod, SvixRequest, SvixRequestContext } from "../request";
 {% if resource.has_post_operation -%}
 import { PostOptions } from "../util";
 {%- endif %}
@@ -28,11 +26,7 @@ import { PostOptions } from "../util";
 {% endfor -%}
 
 export class {{ resource_type_name }} {
-    private readonly api: {{ api_type_name }};
-
-    public constructor(config: Configuration) {
-        this.api = new {{ api_type_name }}(config);
-    }
+    public constructor(private readonly requestCtx: SvixRequestContext) {}
 
     {% for op in resource.operations -%}
         {% set has_query_params = op.query_params | length > 0 -%}
@@ -42,7 +36,7 @@ export class {{ resource_type_name }} {
         {% set response_type =
             op.response_body_schema_name | default("void") | replace("_", "") -%}
         {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="js") }}
-        public {{ op.name | to_lower_camel_case }}(
+        public async {{ op.name | to_lower_camel_case }}(
             {# path parameters -#}
             {% for p in op.path_params -%}
                 {{ p | to_lower_camel_case }}: string,
@@ -68,28 +62,34 @@ export class {{ resource_type_name }} {
                 options?: PostOptions,
             {% endif -%}
         ): Promise<{{ response_type }}> {
-            return this.api.{{ op.id | to_lower_camel_case }}({
-                {# path parameters -#}
-                {% for p in op.path_params -%}
-                    {{ p | to_lower_camel_case }},
-                {% endfor -%}
+            const request = new SvixRequest(HttpMethod.{{ op.method | upper }}, "{{ op.path }}");
 
-                {# body parameter interface -#}
-                {% if op.request_body_schema_name is defined -%}
-                    {{ op.request_body_schema_name | to_lower_camel_case }},
-                {% endif -%}
+            {# path parameters -#}
+            {% for p in op.path_params -%}
+                request.setPathParam("{{ p }}", {{ p | to_lower_camel_case }});
+            {% endfor -%}
 
-                {# query parameters, PostOptions -#}
-                {% if op | has_query_or_header_params -%}
-                    ...options,
-                    {# HACK: coerce some null query params to undefined -#}
-                    {% for p in op.query_params -%}
-                        {% if p.name == "iterator" or p.name == "after" or p.name == "before" -%}
-                            {{ p.name }}: options?.{{ p.name }} ?? undefined,
-                        {% endif -%}
-                    {% endfor -%}
-                {% endif -%}
-            });
+            {# query parameters -#}
+            {% for p in op.query_params -%}
+                request.setQueryParam("{{ p.name }}", options?.{{ p.name | to_lower_camel_case }});
+            {% endfor -%}
+
+            {# header parameters -#}
+            {% for p in op.header_params -%}
+                request.setHeaderParam("{{ p.name }}", options?.{{ p.name | to_lower_camel_case }});
+            {% endfor -%}
+
+            {# body parameter -#}
+            {% if op.request_body_schema_name is defined -%}
+                request.body = {{ op.request_body_schema_name | to_lower_camel_case }};
+            {% endif -%}
+
+            {% if op.response_body_schema_name is defined %}
+                const responseBody = await request.send(this.requestCtx);
+                return responseBody as {{ response_type }};
+            {% else %}
+                await request.send(this.requestCtx);
+            {% endif -%}
         }{% if not loop.last %}{{ "\n" }}{% endif %}
     {% endfor -%}
 }
