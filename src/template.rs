@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
 use camino::Utf8Path;
-use heck::{ToLowerCamelCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
+use heck::{
+    ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
+};
 use itertools::Itertools as _;
 use minijinja::{path_loader, value::Kwargs, Value};
 
@@ -12,6 +14,9 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
     // === Custom filters ===
 
     // --- Case conversion ---
+    env.add_filter("to_upper_snake_case", |s: Cow<'_, str>| {
+        s.to_shouty_snake_case()
+    });
     env.add_filter("to_snake_case", |s: Cow<'_, str>| s.to_snake_case());
     env.add_filter("to_lower_camel_case", |s: Cow<'_, str>| {
         s.to_lower_camel_case()
