@@ -9,6 +9,6 @@ async def get_or_create(
         path_params={},
         query_params={"get_if_exists": "true"},
         header_params=options._header_params(),
-        json_body=application_in.to_dict(),
+        json_body=application_in.model_dump_json(exclude_unset=True, by_alias=True),
     )
-    return ApplicationOut.from_dict(response.json())
+    return ApplicationOut.model_validate(response.json())
