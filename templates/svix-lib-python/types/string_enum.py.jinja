@@ -1,0 +1,10 @@
+from enum import Enum
+
+
+class {{ type.name | to_upper_camel_case }}(str, Enum):
+    {% for value in type.values -%}
+    {{ value | to_upper_snake_case }} = "{{ value }}"
+    {% endfor -%}
+
+    def __str__(self) -> str:
+        return str(self.value)
