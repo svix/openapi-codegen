@@ -564,10 +564,6 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_datetime")?;
                 Ok(matches!(**self, Self::SchemaRef(_)).into())
             }
-            "is_set" => {
-                ensure_no_args(args, "is_set")?;
-                Ok(matches!(**self, Self::Set(_)).into())
-            }
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
     }
