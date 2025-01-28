@@ -9,9 +9,9 @@ use serde::Deserialize;
 
 use crate::{
     api::{Api, Resource},
+    postprocessing::Postprocessor,
     template,
     types::Types,
-    util::run_postprocessing,
 };
 
 #[derive(Default, Deserialize)]
@@ -64,25 +64,34 @@ pub(crate) fn generate(
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;
 
+    let postprocessor = Postprocessor::from_ext(tpl_file_ext)?;
+
     let generator = Generator {
         tpl,
         tpl_file_ext,
         output_dir,
+        postprocessor,
         no_postprocess,
     };
 
     match tpl_kind {
-        TemplateKind::ApiResource => generator.generate_api_resources(api),
-        TemplateKind::ApiSummary => generator.generate_api_summary(api),
-        TemplateKind::Type => generator.generate_types(types),
-        TemplateKind::TypeSummary => generator.generate_type_summary(types),
+        TemplateKind::ApiResource => generator.generate_api_resources(api)?,
+        TemplateKind::ApiSummary => generator.generate_api_summary(api)?,
+        TemplateKind::Type => generator.generate_types(types)?,
+        TemplateKind::TypeSummary => generator.generate_type_summary(types)?,
+    };
+    if !no_postprocess && !postprocessor.should_postprocess_single_file() {
+        postprocessor.postprocess_path(output_dir);
     }
+
+    Ok(())
 }
 
 struct Generator<'a> {
     tpl: Template<'a, 'a>,
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
+    postprocessor: Postprocessor,
     no_postprocess: bool,
 }
 
@@ -139,8 +148,8 @@ impl Generator<'_> {
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         self.tpl.render_to_write(ctx, out_file)?;
-        if !self.no_postprocess {
-            run_postprocessing(&file_path);
+        if !self.no_postprocess && self.postprocessor.should_postprocess_single_file() {
+            self.postprocessor.postprocess_path(&file_path);
         }
 
         Ok(())

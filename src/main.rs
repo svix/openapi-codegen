@@ -12,6 +12,7 @@ use tempfile::TempDir;
 
 mod api;
 mod generator;
+mod postprocessing;
 mod template;
 mod types;
 mod util;
