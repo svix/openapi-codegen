@@ -6,5 +6,7 @@
         // jinja-js is kind of broken, for instance
         // it doesn't highlight {# comments #}
         "*.ts.jinja": "jinja",
+        // api_extra snippets aren't syntactically valid outside of a class definition
+        "*.ts": "plaintext",
     }
 }
