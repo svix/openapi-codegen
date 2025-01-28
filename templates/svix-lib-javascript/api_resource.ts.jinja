@@ -90,6 +90,12 @@ export class {{ resource_type_name }} {
             {% else %}
                 await request.send(this.requestCtx);
             {% endif -%}
-        }{% if not loop.last %}{{ "\n" }}{% endif %}
+        }
+
+        {% set extra_path -%}
+            api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.ts
+        {%- endset -%}
+        {% include extra_path ignore missing %}
+
     {% endfor -%}
 }
