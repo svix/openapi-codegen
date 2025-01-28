@@ -2,8 +2,8 @@ from enum import IntEnum
 
 
 class {{ type.name | to_upper_camel_case }}(IntEnum):
-    {% for value in type.values -%}
-    VALUE_{{ value }} = {{ value }}
+    {% for varname, value in type.variants -%}
+    {{ varname | to_upper_snake_case }} = {{ value }}
     {% endfor -%}
 
     def __str__(self) -> str:
