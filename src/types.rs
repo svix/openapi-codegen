@@ -84,10 +84,23 @@ impl Type {
                     TypeData::from_object_schema(*obj)?
                 }
                 InstanceType::Integer => {
+                    let enum_varnames = s
+                        .extensions
+                        .get("x-enum-varnames")
+                        .context("unsupported: integer type without enum varnames")?
+                        .as_array()
+                        .context("unsupported: integer type enum varnames should be a list")?;
                     let values = s
                         .enum_values
                         .context("unsupported: integer type without enum values")?;
-                    TypeData::from_integer_enum(values)?
+                    if enum_varnames.len() != values.len() {
+                        bail!(
+                            "enum varnames length ({}) does not match values length ({})",
+                            enum_varnames.len(),
+                            values.len()
+                        );
+                    }
+                    TypeData::from_integer_enum(values, enum_varnames)?
                 }
                 InstanceType::String => {
                     let values = s
@@ -138,7 +151,7 @@ pub(crate) enum TypeData {
         values: Vec<String>,
     },
     IntegerEnum {
-        values: Vec<i64>,
+        variants: Vec<(String, i64)>,
     },
     #[allow(dead_code)] // not _yet_ supported
     StructEnum {
@@ -185,15 +198,30 @@ impl TypeData {
         })
     }
 
-    fn from_integer_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
+    fn from_integer_enum(
+        values: Vec<serde_json::Value>,
+        enum_varnames: &[serde_json::Value],
+    ) -> anyhow::Result<TypeData> {
         Ok(Self::IntegerEnum {
-            values: values
+            variants: values
                 .into_iter()
                 .enumerate()
                 .map(|(i, v)| match v {
-                    serde_json::Value::Number(s) => s
-                        .as_i64()
-                        .with_context(|| format!("enum value {s} is not an integer")),
+                    serde_json::Value::Number(s) => {
+                        let num = s
+                            .as_i64()
+                            .with_context(|| format!("enum value {s} is not an integer"))?;
+                        Ok((
+                            enum_varnames[i]
+                                .as_str()
+                                .context(format!(
+                                    "enum varname {} is not a string",
+                                    &enum_varnames[i]
+                                ))?
+                                .to_string(),
+                            num,
+                        ))
+                    }
                     _ => bail!("enum value {} is not a number", i + 1),
                 })
                 .collect::<anyhow::Result<_>>()?,
