@@ -9,6 +9,9 @@ from . {{ c | to_snake_case }} import {{ c | to_upper_camel_case }}
 {% endfor -%}
 
 class {{ type.name | to_upper_camel_case }}(SvixBaseModel):
+{%- if type.description is defined %}
+    {{ type.description | to_doc_comment(style="python") | indent(4) }}
+{% endif %}
 {%- for field in type.fields %}
     {%- if field.name != field.name | to_snake_case  %}
         {%- if field.required %}
