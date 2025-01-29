@@ -86,7 +86,7 @@ export class {{ resource_type_name }} {
 
             {% if op.response_body_schema_name is defined %}
                 const responseBody = await request.send(this.requestCtx);
-                return responseBody as {{ response_type }};
+                return JSON.parse(responseBody);
             {% else %}
                 await request.send(this.requestCtx);
             {% endif -%}
