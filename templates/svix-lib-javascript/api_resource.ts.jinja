@@ -36,7 +36,7 @@ export class {{ resource_type_name }} {
         {% set response_type =
             op.response_body_schema_name | default("void") | replace("_", "") -%}
         {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="js") }}
-        public async {{ op.name | to_lower_camel_case }}(
+        public {{ op.name | to_lower_camel_case }}(
             {# path parameters -#}
             {% for p in op.path_params -%}
                 {{ p | to_lower_camel_case }}: string,
@@ -85,10 +85,9 @@ export class {{ resource_type_name }} {
             {% endif -%}
 
             {% if op.response_body_schema_name is defined %}
-                const responseBody = await request.send(this.requestCtx);
-                return JSON.parse(responseBody);
+                return request.send(this.requestCtx);
             {% else %}
-                await request.send(this.requestCtx);
+                return request.sendNoResponseBody(this.requestCtx);
             {% endif -%}
         }
 
