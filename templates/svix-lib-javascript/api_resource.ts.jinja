@@ -81,11 +81,17 @@ export class {{ resource_type_name }} {
 
             {# body parameter -#}
             {% if op.request_body_schema_name is defined -%}
-                request.body = {{ op.request_body_schema_name | to_lower_camel_case }};
+                request.setBody(
+                    {{ op.request_body_schema_name | to_lower_camel_case }},
+                    "{{ op.request_body_schema_name | to_upper_camel_case }}",
+                );
             {% endif -%}
 
             {% if op.response_body_schema_name is defined %}
-                return request.send(this.requestCtx);
+                return request.send(
+                    this.requestCtx,
+                    "{{ op.response_body_schema_name | to_upper_camel_case }}",
+                );
             {% else %}
                 return request.sendNoResponseBody(this.requestCtx);
             {% endif -%}
