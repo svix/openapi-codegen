@@ -18,10 +18,11 @@ pub enum {{ type.name | to_upper_camel_case }} {
 
 impl fmt::Display for {{ type.name | to_upper_camel_case }} {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
+        let value = match self {
             {% for value in type.values -%}
-                Self::{{ value | to_upper_camel_case }} => f.write_str("{{ value }}"),
+                Self::{{ value | to_upper_camel_case }} => "{{ value }}",
             {% endfor -%}
-        }
+        };
+        f.write_str(value)
     }
 }
