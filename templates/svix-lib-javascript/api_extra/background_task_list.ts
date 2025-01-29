@@ -4,7 +4,7 @@
  * @deprecated Use list instead.
  * */
 public listByEndpoint(
-    options?: BackgroundTaskListOptions
+  options?: BackgroundTaskListOptions
 ): Promise<ListResponseBackgroundTaskOut> {
-    return this.list(options);
+  return this.list(options);
 }
