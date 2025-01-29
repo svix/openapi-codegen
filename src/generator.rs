@@ -79,7 +79,7 @@ pub(crate) fn generate(
         TemplateKind::ApiSummary => generator.generate_api_summary(api)?,
         TemplateKind::Type => generator.generate_types(types)?,
         TemplateKind::TypeSummary => generator.generate_type_summary(types)?,
-    };
+    }
     if let Some(postprocessor) = postprocessor {
         if !no_postprocess && !postprocessor.should_postprocess_single_file() {
             postprocessor.postprocess_path(output_dir);
