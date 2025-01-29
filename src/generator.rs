@@ -64,7 +64,7 @@ pub(crate) fn generate(
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;
 
-    let postprocessor = Postprocessor::from_ext(tpl_file_ext)?;
+    let postprocessor = Postprocessor::from_ext(tpl_file_ext);
 
     let generator = Generator {
         tpl,
@@ -80,8 +80,10 @@ pub(crate) fn generate(
         TemplateKind::Type => generator.generate_types(types)?,
         TemplateKind::TypeSummary => generator.generate_type_summary(types)?,
     };
-    if !no_postprocess && !postprocessor.should_postprocess_single_file() {
-        postprocessor.postprocess_path(output_dir);
+    if let Some(postprocessor) = postprocessor {
+        if !no_postprocess && !postprocessor.should_postprocess_single_file() {
+            postprocessor.postprocess_path(output_dir);
+        }
     }
 
     Ok(())
@@ -91,7 +93,7 @@ struct Generator<'a> {
     tpl: Template<'a, 'a>,
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
-    postprocessor: Postprocessor,
+    postprocessor: Option<Postprocessor>,
     no_postprocess: bool,
 }
 
@@ -148,10 +150,11 @@ impl Generator<'_> {
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         self.tpl.render_to_write(ctx, out_file)?;
-        if !self.no_postprocess && self.postprocessor.should_postprocess_single_file() {
-            self.postprocessor.postprocess_path(&file_path);
+        if let Some(postprocessor) = self.postprocessor {
+            if !self.no_postprocess && postprocessor.should_postprocess_single_file() {
+                postprocessor.postprocess_path(&file_path);
+            }
         }
-
         Ok(())
     }
 }

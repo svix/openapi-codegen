@@ -1,6 +1,5 @@
 use std::{collections::BTreeSet, io, process::Command, sync::Mutex};
 
-use anyhow::bail;
 use camino::Utf8Path;
 
 #[derive(Debug, Clone, Copy)]
@@ -13,18 +12,18 @@ pub(crate) enum Postprocessor {
 }
 
 impl Postprocessor {
-    pub(crate) fn from_ext(ext: &str) -> anyhow::Result<Self> {
-        let lang = match ext {
-            "py" => Self::Python,
-            "rs" => Self::Rust,
-            "go" => Self::Go,
-            "kt" => Self::Kotlin,
-            "cs" => Self::CSharp,
+    pub(crate) fn from_ext(ext: &str) -> Option<Self> {
+        match ext {
+            "py" => Some(Self::Python),
+            "rs" => Some(Self::Rust),
+            "go" => Some(Self::Go),
+            "kt" => Some(Self::Kotlin),
+            "cs" => Some(Self::CSharp),
             _ => {
-                bail!("File extension {ext} is not yet supported");
+                tracing::warn!("no known postprocessing command(s) for {ext} files");
+                None
             }
-        };
-        Ok(lang)
+        }
     }
 
     pub(crate) fn postprocess_path(&self, path: &Utf8Path) {
@@ -43,7 +42,6 @@ impl Postprocessor {
     fn postprocessing_commands(&self) -> &[(&'static str, &[&str])] {
         match self {
             Self::Python => &[
-                // fixme: the ordering of the commands is important, maybe ensure the order in a more robust way
                 ("ruff", &["check", "--no-respect-gitignore", "--fix"]), // First lint and remove unused imports
                 (
                     "ruff", // Then sort imports
