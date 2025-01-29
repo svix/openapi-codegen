@@ -98,3 +98,8 @@ export class {{ resource_type_name }} {
 
     {% endfor -%}
 }
+
+{% set extra_path -%}
+    api_extra/{{ resource.name | to_snake_case }}.ts
+{%- endset -%}
+{% include extra_path ignore missing %}
