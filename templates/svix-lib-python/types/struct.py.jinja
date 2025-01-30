@@ -13,8 +13,10 @@ class {{ type.name | to_upper_camel_case }}(BaseModel):
     {{ type.description | to_doc_comment(style="python") | indent(4) }}
 {% endif %}
 {%- for field in type.fields %}
-    {%- if field.required %}
+    {%- if field.required and not field.nullable %}
     {{ field.name | to_snake_case }}: {{ field.type.to_python() }}
+    {%- elif field.required and field.nullable %}
+    {{ field.name | to_snake_case }}: t.Optional[{{ field.type.to_python() }}]
     {%- else %}
     {{ field.name | to_snake_case }}: t.Optional[{{ field.type.to_python() }}] = None
     {%- endif %}
