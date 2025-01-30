@@ -114,5 +114,14 @@ class {{ resource_type_name }} internal constructor(token: String, options: Svix
             }
         }
 
+    {% set extra_path -%}
+        api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.kt
+    {%- endset -%}
+    {% include extra_path ignore missing %}
     {% endfor -%}
 }
+
+{% set extra_path -%}
+    api_extra/{{ resource.name | to_snake_case }}.kt
+{%- endset -%}
+{% include extra_path ignore missing %}
