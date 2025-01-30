@@ -7,11 +7,8 @@ use crate::{
 };
 
 {% for op in resource.operations -%}
-    {% if (op.query_params | length > 0) or (op.header_params | length > 0) %}
-    {% set has_required_params =
-        (op.query_params | selectattr("required") | length > 0) or
-        (op.header_params | selectattr("required") | length > 0) -%}
-    {% if not has_required_params -%}
+    {% if op | has_query_or_header_params %}
+    {% if not op | has_required_query_or_header_params -%}
         #[derive(Default)]
     {% endif -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
@@ -55,7 +52,7 @@ impl<'a> {{ resource_type_name }}<'a> {
     }
 
     {% for op in resource.operations %}
-    {% set has_params = (op.query_params | length > 0) or (op.header_params | length > 0) -%}
+    {% set has_params = op | has_query_or_header_params -%}
     {% if op.description is defined -%}
         {{ op.description | to_doc_comment(style="rust") }}
     {% endif -%}
@@ -80,9 +77,7 @@ impl<'a> {{ resource_type_name }}<'a> {
             {% set param_struct_name -%}
                 {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
             {%- endset -%}
-            {% set has_required_params =
-                (op.query_params | selectattr("required") | length > 0) or
-                (op.header_params | selectattr("required") | length > 0) -%}
+            {% set has_required_params = op | has_required_query_or_header_params -%}
             {%- if has_required_params -%}
                 options: {{ param_struct_name }},
             {%- else -%}
