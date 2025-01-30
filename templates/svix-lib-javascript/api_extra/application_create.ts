@@ -1,7 +1,7 @@
 /** Get the application with the UID from `applicationIn`, or create it if it doesn't exist yet. */
 public getOrCreate(
   applicationIn: ApplicationIn,
-  options?: PostOptions
+  options?: ApplicationCreateOptions
 ): Promise<ApplicationOut> {
   const request = new SvixRequest(HttpMethod.POST, "/api/v1/app");
 

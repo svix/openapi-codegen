@@ -7,17 +7,23 @@ import {
     {% endfor -%}
 } from "../openapi";
 import { HttpMethod, SvixRequest, SvixRequestContext } from "../request";
-{% if resource.has_post_operation -%}
-import { PostOptions } from "../util";
-{%- endif %}
 
 {% for op in resource.operations -%}
-    {% if op.query_params | length > 0 -%}
+    {% if op | has_query_or_header_params -%}
     export interface {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
-            {{ p.description | to_doc_comment(style="js") }}
+            {% if p.description is defined -%}
+                {{ p.description | to_doc_comment(style="js") }}
+            {% endif -%}
             {% set field_ty = p.type.to_js() -%}
             {% if p.name == "iterator" %}{% set field_ty = "string | null" %}{% endif -%}
+            {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ field_ty }};
+        {% endfor -%}
+        {% for p in op.header_params -%}
+            {% if p.description is defined -%}
+                {{ p.description | to_doc_comment(style="js") }}
+            {% endif -%}
+            {% set field_ty = "string" -%}
             {{ p.name | to_lower_camel_case }}{% if not p.required %}?{% endif %}: {{ field_ty }};
         {% endfor -%}
     }
@@ -29,10 +35,6 @@ export class {{ resource_type_name }} {
     public constructor(private readonly requestCtx: SvixRequestContext) {}
 
     {% for op in resource.operations -%}
-        {% set has_query_params = op.query_params | length > 0 -%}
-        {% set has_required_query_params =
-            op.query_params | selectattr("required") | length > 0 -%}
-        {% set has_header_params = op.header_params | length > 0 -%}
         {% set response_type =
             op.response_body_schema_name | default("void") | replace("_", "") -%}
         {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="js") }}
@@ -49,17 +51,11 @@ export class {{ resource_type_name }} {
             {% endif -%}
 
             {# query parameters -#}
-            {% if has_query_params  -%}
+            {% if op | has_query_or_header_params -%}
                 {% set field_ty -%}
                     {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
                 {%- endset -%}
-                options{% if not has_required_query_params %}?{% endif %}: {{ field_ty }},
-            {% endif -%}
-
-            {# PostOptions -#}
-            {% if has_header_params -%}
-                {# for now, only idempotency-key is supported in header params -#}
-                options?: PostOptions,
+                options{% if not op | has_required_query_or_header_params %}?{% endif %}: {{ field_ty }},
             {% endif -%}
         ): Promise<{{ response_type }}> {
             const request = new SvixRequest(HttpMethod.{{ op.method | upper }}, "{{ op.path }}");
