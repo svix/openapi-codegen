@@ -92,6 +92,13 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             }
         },
     );
+    // --- misc ---
+    env.add_filter("strip_trailing_comma", |s: Cow<'_, str>| {
+        match s.trim_end().strip_suffix(",") {
+            Some(stripped) => stripped.to_string(),
+            None => s.into_owned(),
+        }
+    });
 
     Ok(env)
 }
