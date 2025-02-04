@@ -56,6 +56,10 @@ struct GenerateFlags {
     /// Include operations in the output that are marked `"x-hidden": true`.
     #[clap(long)]
     include_hidden: bool,
+
+    /// Write api.ron and types.ron files, as a debugging aid.
+    #[clap(long)]
+    debug: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -119,13 +123,12 @@ fn analyze_and_generate(
 
     if let Some(paths) = spec.paths {
         let api = Api::new(paths, &components.schemas, flags.include_hidden).unwrap();
-        {
+        let types = api.types(&mut components.schemas);
+
+        if flags.debug {
             let mut api_file = BufWriter::new(File::create("api.ron")?);
             writeln!(api_file, "{api:#?}")?;
-        }
 
-        let types = api.types(&mut components.schemas);
-        {
             let mut types_file = BufWriter::new(File::create("types.ron")?);
             writeln!(types_file, "{types:#?}")?;
         }
