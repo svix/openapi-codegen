@@ -458,11 +458,14 @@ impl FieldType {
             Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => {
                 "number".into()
             }
-            Self::String => "string".into(),
+            Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date | null".into(),
-            Self::Uri | Self::JsonObject | Self::Map { .. } => todo!(),
+            Self::JsonObject => "any".into(),
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("{}[]", field_type.to_js_typename()).into()
+            }
+            Self::Map { value_ty } => {
+                format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
             Self::SchemaRef(name) => name.clone().into(),
         }
@@ -557,6 +560,7 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "to_rust")?;
                 Ok(self.to_rust_typename().into())
             }
+
             "is_datetime" => {
                 ensure_no_args(args, "is_datetime")?;
                 Ok(matches!(**self, Self::DateTime).into())
@@ -565,6 +569,7 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_datetime")?;
                 Ok(matches!(**self, Self::SchemaRef(_)).into())
             }
+
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
     }
