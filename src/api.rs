@@ -25,6 +25,7 @@ impl Api {
     pub(crate) fn new(
         paths: openapi::Paths,
         component_schemas: &IndexMap<String, openapi::SchemaObject>,
+        include_hidden: bool,
     ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
@@ -40,7 +41,7 @@ impl Api {
 
             for (method, op) in path_item {
                 if let Some((res_path, op)) =
-                    Operation::from_openapi(&path, method, op, component_schemas)
+                    Operation::from_openapi(&path, method, op, component_schemas, include_hidden)
                 {
                     let resource = get_or_insert_resource(&mut resources, res_path);
                     if op.method == "post" {
@@ -180,11 +181,16 @@ impl Operation {
         method: &str,
         op: openapi::Operation,
         component_schemas: &IndexMap<String, aide::openapi::SchemaObject>,
+        include_hidden: bool,
     ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
             return None;
         };
+        if !include_hidden && op.extensions.get("x-hidden").is_some_and(|val| val == true) {
+            return None;
+        }
+
         let mut op_id_parts_iter = op_id.split('.');
         let version = op_id_parts_iter
             .next()

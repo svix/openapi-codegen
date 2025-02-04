@@ -37,14 +37,25 @@ enum Command {
         #[clap(short, long)]
         input_file: String,
 
-        /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
-        #[clap(long)]
-        no_postprocess: bool,
-
         /// Path to the output directory.
         #[clap(long)]
         output_dir: Option<Utf8PathBuf>,
+
+        #[clap(flatten)]
+        flags: GenerateFlags,
     },
+}
+
+// Boolean flags for generate command, separate struct to simplify passing them around.
+#[derive(Clone, clap::Args)]
+struct GenerateFlags {
+    /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
+    #[clap(long)]
+    no_postprocess: bool,
+
+    /// Include operations in the output that are marked `"x-hidden": true`.
+    #[clap(long)]
+    include_hidden: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -54,8 +65,8 @@ fn main() -> anyhow::Result<()> {
     let Command::Generate {
         template,
         input_file,
-        no_postprocess,
         output_dir,
+        flags,
     } = args.command;
 
     let spec = fs::read_to_string(&input_file)?;
@@ -65,7 +76,7 @@ fn main() -> anyhow::Result<()> {
 
     match &output_dir {
         Some(path) => {
-            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
+            analyze_and_generate(spec, template.into(), path, flags)?;
             write_codegen_metadata(input_sha256sum, path)?;
         }
         None => {
@@ -88,7 +99,7 @@ fn main() -> anyhow::Result<()> {
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template.into(), path, no_postprocess)?;
+            analyze_and_generate(spec, template.into(), path, flags)?;
             write_codegen_metadata(input_sha256sum, path)?;
             // Persist the TempDir if everything was successful
             _ = output_dir.into_path();
@@ -102,12 +113,12 @@ fn analyze_and_generate(
     spec: OpenApi,
     template: String,
     path: &Utf8Path,
-    no_postprocess: bool,
+    flags: GenerateFlags,
 ) -> anyhow::Result<()> {
     let mut components = spec.components.unwrap_or_default();
 
     if let Some(paths) = spec.paths {
-        let api = Api::new(paths, &components.schemas).unwrap();
+        let api = Api::new(paths, &components.schemas, flags.include_hidden).unwrap();
         {
             let mut api_file = BufWriter::new(File::create("api.ron")?);
             writeln!(api_file, "{api:#?}")?;
@@ -119,7 +130,7 @@ fn analyze_and_generate(
             writeln!(types_file, "{types:#?}")?;
         }
 
-        generate(api, types, template, path, no_postprocess)?;
+        generate(api, types, template, path, flags.no_postprocess)?;
     }
 
     println!("done! output written to {path}");
