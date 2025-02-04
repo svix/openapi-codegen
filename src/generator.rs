@@ -36,7 +36,6 @@ pub(crate) fn generate(
         None => (tpl_name.as_str(), &format!("{tpl_name}.jinja")),
     };
 
-    let tpl_path_full = Utf8Path::new("templates").join(tpl_path);
     let (tpl_base_name, tpl_file_ext) = Utf8Path::new(name_without_jinja_suffix)
         .file_name()
         .context("template name must not end in '/'")?
@@ -54,12 +53,12 @@ pub(crate) fn generate(
         ),
     };
 
-    let tpl_source = fs::read_to_string(&tpl_path_full)?;
+    let tpl_source = fs::read_to_string(tpl_path)?;
 
     let mut minijinja_env = template::env(
-        tpl_path_full
+        Utf8Path::new(tpl_path)
             .parent()
-            .with_context(|| format!("invalid template path `{tpl_path_full}`"))?,
+            .with_context(|| format!("invalid template path `{tpl_path}`"))?,
     )?;
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;

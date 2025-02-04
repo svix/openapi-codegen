@@ -29,7 +29,7 @@ struct CliArgs {
 enum Command {
     /// Generate code from an OpenAPI spec.
     Generate {
-        /// The template to use (`.jinja` extension can be omitted).
+        /// Path to a template file to use (`.jinja` extension can be omitted).
         #[clap(short, long)]
         template: Utf8PathBuf,
 
