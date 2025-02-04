@@ -141,6 +141,9 @@ impl {{ resource_type_name }}Commands {
                     {# query / header parameters -#}
                     {% if has_params %}options,{% endif -%}
                 } => {
+                    {% if op.deprecated -%}
+                        #[allow(deprecated)]
+                    {% endif -%}
                     {% if op.response_body_schema_name is defined -%}
                         let resp =
                     {% endif -%}
