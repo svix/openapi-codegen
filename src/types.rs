@@ -418,14 +418,14 @@ pub(crate) enum FieldType {
     /// A JSON object with arbitrary field values.
     JsonObject,
     /// A regular old list.
-    List(Box<FieldType>),
+    List(Arc<FieldType>),
     /// List with unique items.
-    Set(Box<FieldType>),
+    Set(Arc<FieldType>),
     /// A map with a given value type.
     ///
     /// The key type is always `String` in JSON schemas.
     Map {
-        value_ty: Box<FieldType>,
+        value_ty: Arc<FieldType>,
     },
     SchemaRef(String),
 
@@ -498,7 +498,7 @@ impl FieldType {
                             bail!("unsupported multi-typed array parameter: `{types:?}`")
                         }
                     };
-                    let inner = Box::new(Self::from_schema(*inner)?);
+                    let inner = Arc::new(Self::from_schema(*inner)?);
                     if array.unique_items == Some(true) {
                         Self::Set(inner)
                     } else {
@@ -533,7 +533,7 @@ impl FieldType {
                         Schema::Bool(true) => Self::JsonObject,
                         Schema::Bool(false) => bail!("unsupported `additional_properties: false`"),
                         Schema::Object(schema_object) => {
-                            let value_ty = Box::new(Self::from_schema_object(schema_object)?);
+                            let value_ty = Arc::new(Self::from_schema_object(schema_object)?);
                             Self::Map { value_ty }
                         }
                     }
@@ -750,13 +750,17 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_schema_ref")?;
                 Ok(matches!(**self, Self::SchemaRef(_)).into())
             }
+            "is_list" => {
+                ensure_no_args(args, "is_list")?;
+                Ok(matches!(**self, Self::List(_)).into())
+            }
             "is_set" => {
                 ensure_no_args(args, "is_set")?;
                 Ok(matches!(**self, Self::Set(_)).into())
             }
-            "is_list" => {
-                ensure_no_args(args, "is_list")?;
-                Ok(matches!(**self, Self::List(_)).into())
+            "is_map" => {
+                ensure_no_args(args, "is_map")?;
+                Ok(matches!(**self, Self::Map { .. }).into())
             }
             "is_string" => {
                 ensure_no_args(args, "is_string")?;
@@ -767,6 +771,30 @@ impl minijinja::value::Object for FieldType {
                 Ok(matches!(**self, Self::JsonObject).into())
             }
 
+            // Returns the inner type of a list or set
+            "inner_type" => {
+                ensure_no_args(args, "inner_type")?;
+
+                let ty = match &**self {
+                    FieldType::List(field_type) | FieldType::Set(field_type) => {
+                        Some(minijinja::Value::from_dyn_object(field_type.clone()))
+                    }
+                    _ => None,
+                };
+                Ok(ty.into())
+            }
+            // Returns the value type of a map
+            "value_type" => {
+                ensure_no_args(args, "value_type")?;
+
+                let ty = match &**self {
+                    FieldType::Map { value_ty } => {
+                        Some(minijinja::Value::from_dyn_object(value_ty.clone()))
+                    }
+                    _ => None,
+                };
+                Ok(ty.into())
+            }
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
     }
