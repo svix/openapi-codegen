@@ -175,7 +175,11 @@ struct Operation {
 }
 
 impl Operation {
-    #[tracing::instrument(name = "operation_from_openapi", skip(op), fields(op_id))]
+    #[tracing::instrument(
+        name = "operation_from_openapi",
+        skip_all,
+        fields(path = path, method = method, op_id),
+    )]
     fn from_openapi(
         path: &str,
         method: &str,
@@ -187,6 +191,8 @@ impl Operation {
             // ignore operations without an operationId
             return None;
         };
+        tracing::Span::current().record("op_id", &op_id);
+
         if !include_hidden && op.extensions.get("x-hidden").is_some_and(|val| val == true) {
             return None;
         }
@@ -196,24 +202,18 @@ impl Operation {
             .next()
             .expect("split iter always contains at least one item");
         let Some(op_name) = op_id_parts_iter.next_back() else {
-            tracing::debug!(
-                op_id,
-                "skipping operation whose ID doesn't contain a period"
-            );
+            tracing::debug!("skipping operation whose ID doesn't contain a period");
             return None;
         };
 
         let res_path: Vec<_> = op_id_parts_iter.map(ToOwned::to_owned).collect();
         if res_path.is_empty() {
-            tracing::debug!(
-                op_id,
-                "skipping operation whose ID only contains one period"
-            );
+            tracing::debug!("skipping operation whose ID only contains one period");
             return None;
         }
 
         if version != "v1" {
-            tracing::warn!(op_id, "found operation whose ID does not begin with v1");
+            tracing::warn!("found operation whose ID does not begin with v1");
             return None;
         }
 
