@@ -142,6 +142,7 @@ impl Generator<'_> {
             (None, "py") => "__init__".to_owned(),
             (None, "rs") => "mod".to_owned(),
             (None, "cs" | "java" | "kt") => "Summary".to_owned(),
+            (None, "ts") => "index".to_owned(),
             (None, _) => "summary".to_owned(),
         };
 
