@@ -7,7 +7,9 @@ use std::{
 use aide::openapi;
 use anyhow::{bail, ensure, Context as _};
 use indexmap::IndexMap;
-use schemars::schema::{InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec};
+use schemars::schema::{
+    InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
+};
 use serde::Serialize;
 
 use crate::util::get_schema_name;
@@ -39,14 +41,14 @@ impl Types {
             };
 
             match Type::from_schema(schema_name.to_owned(), obj) {
-                Ok(ty) => {
+                Ok(tys) => {
                     extra_components.extend(
-                        ty.referenced_components()
-                            .into_iter()
+                        tys.iter()
+                            .flat_map(|ty| ty.referenced_components())
                             .filter(|&c| c != schema_name && !types.contains_key(c))
                             .map(ToOwned::to_owned),
                     );
-                    types.insert(schema_name.to_owned(), ty);
+                    types.extend(tys.into_iter().map(|ty| (ty.name.clone(), ty)));
                 }
                 Err(e) => {
                     tracing::warn!(schema_name, "unsupported schema: {e:#}");
@@ -74,14 +76,18 @@ pub(crate) struct Type {
 }
 
 impl Type {
-    pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Self> {
+    pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Vec<Self>> {
+        let mut result = Vec::new();
         let data = match s.instance_type {
             Some(SingleOrVec::Single(it)) => match *it {
                 InstanceType::Object => {
                     let obj = s
                         .object
                         .context("unsupported: object type without further validation")?;
-                    TypeData::from_object_schema(*obj)?
+                    let (data, aux_ty) = TypeData::from_object_schema(&name, *obj, s.subschemas)?;
+                    result.extend(aux_ty);
+
+                    data
                 }
                 InstanceType::Integer => {
                     let enum_varnames = s
@@ -116,12 +122,13 @@ impl Type {
 
         let metadata = s.metadata.unwrap_or_default();
 
-        Ok(Self {
+        result.push(Self {
             name,
             description: metadata.description,
             deprecated: metadata.deprecated,
             data,
-        })
+        });
+        Ok(result)
     }
 
     pub(crate) fn referenced_components(&self) -> BTreeSet<&str> {
@@ -132,7 +139,7 @@ impl Type {
                 .collect(),
             TypeData::StringEnum { .. } => BTreeSet::new(),
             TypeData::IntegerEnum { .. } => BTreeSet::new(),
-            TypeData::StructEnum { variants } => variants
+            TypeData::StructEnum { variants, .. } => variants
                 .iter()
                 .flat_map(|v| &v.fields)
                 .filter_map(|f| f.r#type.referenced_schema())
@@ -153,36 +160,82 @@ pub(crate) enum TypeData {
     IntegerEnum {
         variants: Vec<(String, i64)>,
     },
-    #[allow(dead_code)] // not _yet_ supported
     StructEnum {
+        /// Name of the field that identifies the variant.
+        discriminator: String,
         variants: Vec<Variant>,
     },
 }
 
 impl TypeData {
-    fn from_object_schema(obj: ObjectValidation) -> anyhow::Result<Self> {
+    fn from_object_schema(
+        name: &str,
+        obj: ObjectValidation,
+        subschemas: Option<Box<SubschemaValidation>>,
+    ) -> anyhow::Result<(Self, Option<Type>)> {
         ensure!(
             obj.additional_properties.is_none(),
-            "additional_properties not yet supported"
+            "additionalProperties not yet supported"
         );
-        ensure!(obj.max_properties.is_none(), "unsupported: max_properties");
-        ensure!(obj.min_properties.is_none(), "unsupported: min_properties");
+        ensure!(obj.max_properties.is_none(), "unsupported: maxProperties");
+        ensure!(obj.min_properties.is_none(), "unsupported: minProperties");
         ensure!(
             obj.pattern_properties.is_empty(),
-            "unsupported: pattern_properties"
+            "unsupported: patternProperties"
         );
-        ensure!(obj.property_names.is_none(), "unsupported: property_names");
+        ensure!(obj.property_names.is_none(), "unsupported: propertyNames");
 
-        Ok(Self::Struct {
-            fields: obj
-                .properties
-                .into_iter()
-                .map(|(name, schema)| {
-                    Field::from_schema(name.clone(), schema, obj.required.contains(&name))
-                        .with_context(|| format!("unsupported field {name}"))
-                })
-                .collect::<anyhow::Result<_>>()?,
-        })
+        let mut fields: Vec<_> = obj
+            .properties
+            .into_iter()
+            .map(|(name, schema)| {
+                Field::from_schema(name.clone(), schema, obj.required.contains(&name))
+                    .with_context(|| format!("unsupported field {name}"))
+            })
+            .collect::<anyhow::Result<_>>()?;
+
+        let mut aux_ty = None;
+        if let Some(sub) = subschemas {
+            ensure!(sub.all_of.is_none(), "unsupported: allOf subschema");
+            ensure!(sub.any_of.is_none(), "unsupported: anyOf subschema");
+            ensure!(sub.not.is_none(), "unsupported: not subschema");
+            ensure!(sub.if_schema.is_none(), "unsupported: if subschema");
+            ensure!(sub.then_schema.is_none(), "unsupported: then subschema");
+            ensure!(sub.else_schema.is_none(), "unsupported: else subschema");
+
+            if let Some(one_of) = sub.one_of {
+                let (discriminator, variants) = Self::struct_enum(one_of)?;
+                let enum_data = Self::StructEnum {
+                    discriminator: discriminator.clone(),
+                    variants,
+                };
+
+                if fields.is_empty() {
+                    return Ok((enum_data, None));
+                } else {
+                    let enum_name = format!("{name}_{discriminator}");
+
+                    aux_ty = Some(Type {
+                        name: enum_name.clone(),
+                        description: None,
+                        deprecated: false,
+                        data: enum_data,
+                    });
+
+                    fields.push(Field {
+                        name: discriminator,
+                        r#type: FieldType::SchemaRef(enum_name),
+                        default: None,
+                        description: None,
+                        required: true,
+                        nullable: false,
+                        deprecated: false,
+                    });
+                }
+            }
+        }
+
+        Ok((Self::Struct { fields }, aux_ty))
     }
 
     fn from_string_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
@@ -227,6 +280,79 @@ impl TypeData {
                 .collect::<anyhow::Result<_>>()?,
         })
     }
+
+    fn struct_enum(one_of: Vec<Schema>) -> anyhow::Result<(String, Vec<Variant>)> {
+        let mut discriminator = None;
+
+        let variants = one_of
+            .into_iter()
+            .map(|variant| {
+                let Schema::Object(s) = variant else {
+                    bail!("unsupported: boolean subschema");
+                };
+
+                let data = match s.instance_type {
+                    Some(SingleOrVec::Single(it)) => match *it {
+                        InstanceType::Object => {
+                            let obj = s
+                                .object
+                                .context("unsupported: object type without further validation")?;
+                            ensure!(s.subschemas.is_none(), "unsupported: nested subschemas");
+
+                            let (data, aux_ty) = TypeData::from_object_schema("", *obj, None)?;
+                            ensure!(
+                                aux_ty.is_none(),
+                                "unsupported: subschema that defines an auxiliary type"
+                            );
+
+                            data
+                        }
+                        _ => bail!("unsupported type in subschema: {it:?}"),
+                    },
+                    Some(SingleOrVec::Vec(_)) => {
+                        bail!("unsupported: multiple types in subschema")
+                    }
+                    None => bail!("unsupported: no type"),
+                };
+
+                let TypeData::Struct { mut fields } = data else {
+                    bail!("unsupported: oneOf schema with non-struct member(s)");
+                };
+
+                let mut name = None;
+
+                fields.retain_mut(|f| match &f.r#type {
+                    FieldType::StringConst(value) => {
+                        if name.is_some() {
+                            // would be nice to be able to bail, but can't from retain_mut
+                            tracing::error!("found two names for one enum variant");
+                            return false;
+                        }
+
+                        if let Some(d) = &discriminator {
+                            if *d != f.name {
+                                // would be nice to be able to bail, but can't from retain_mut
+                                tracing::error!("found two different consts between enum variants");
+                                return false;
+                            }
+                        } else {
+                            discriminator = Some(f.name.clone());
+                        }
+
+                        name = Some(value.clone());
+                        false
+                    }
+                    _ => true,
+                });
+
+                let name = name.context("failed to find discriminator value")?;
+                Ok(Variant { name, fields })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let discriminator = discriminator.context("failed to detect enum discriminator")?;
+        Ok((discriminator, variants))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -250,9 +376,6 @@ impl Field {
         };
         let metadata = obj.metadata.clone().unwrap_or_default();
 
-        ensure!(obj.const_value.is_none(), "unsupported const_value");
-        ensure!(obj.enum_values.is_none(), "unsupported enum_values");
-
         let nullable = obj
             .extensions
             .get("nullable")
@@ -273,6 +396,8 @@ impl Field {
 
 #[derive(Debug, Serialize)]
 pub(crate) struct Variant {
+    /// Discriminator value that identifies this variant.
+    name: String,
     fields: Vec<Field>,
 }
 
@@ -303,6 +428,9 @@ pub(crate) enum FieldType {
         value_ty: Box<FieldType>,
     },
     SchemaRef(String),
+
+    /// A string constant, used as an enum discriminator value.
+    StringConst(String),
 }
 
 impl FieldType {
@@ -321,8 +449,8 @@ impl FieldType {
         Self::from_schema_object(obj)
     }
 
-    fn from_schema_object(obj: SchemaObject) -> anyhow::Result<FieldType> {
-        Ok(match &obj.instance_type {
+    fn from_schema_object(obj: SchemaObject) -> anyhow::Result<Self> {
+        let result = match &obj.instance_type {
             Some(SingleOrVec::Single(ty)) => match **ty {
                 InstanceType::Boolean => Self::Bool,
                 InstanceType::Integer => match obj.format.as_deref() {
@@ -335,12 +463,32 @@ impl FieldType {
                     Some("uint" | "uint64") => Self::UInt64,
                     f => bail!("unsupported integer format: `{f:?}`"),
                 },
-                InstanceType::String => match obj.format.as_deref() {
-                    None => Self::String,
-                    Some("date-time") => Self::DateTime,
-                    Some("uri") => Self::Uri,
-                    Some(f) => bail!("unsupported string format: `{f:?}`"),
-                },
+                InstanceType::String => {
+                    // String consts are the only const / enum values we support, for now.
+                    // Early return so we don't hit the checks for these two below.
+                    if let Some(value) = obj.const_value {
+                        let serde_json::Value::String(s) = value else {
+                            bail!("unsupported: non-string constant as field type");
+                        };
+                        return Ok(Self::StringConst(s));
+                    }
+                    if let Some(values) = obj.enum_values {
+                        let Ok([value]): Result<[_; 1], _> = values.try_into() else {
+                            bail!("unsupported: enum as field type");
+                        };
+                        let serde_json::Value::String(s) = value else {
+                            bail!("unsupported: non-string constant as field type");
+                        };
+                        return Ok(Self::StringConst(s));
+                    }
+
+                    match obj.format.as_deref() {
+                        None => Self::String,
+                        Some("date-time") => Self::DateTime,
+                        Some("uri") => Self::Uri,
+                        Some(f) => bail!("unsupported string format: `{f:?}`"),
+                    }
+                }
                 InstanceType::Array => {
                     let array = obj.array.context("array type must have array props")?;
                     ensure!(array.additional_items.is_none(), "not supported");
@@ -399,7 +547,13 @@ impl FieldType {
                 Some(name) => Self::SchemaRef(name),
                 None => bail!("unsupported type-less parameter"),
             },
-        })
+        };
+
+        // If we didn't hit the early return above, check that there's no const or enum value(s).
+        ensure!(obj.const_value.is_none(), "unsupported const_value");
+        ensure!(obj.enum_values.is_none(), "unsupported enum_values");
+
+        Ok(result)
     }
 
     fn to_csharp_typename(&self) -> Cow<'_, str> {
@@ -416,6 +570,7 @@ impl FieldType {
                 format!("List<{}>", field_type.to_csharp_typename()).into()
             }
             Self::SchemaRef(name) => name.clone().into(),
+            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -431,7 +586,7 @@ impl FieldType {
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("[]{}", field_type.to_go_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),
+            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -448,7 +603,7 @@ impl FieldType {
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("List<{}>", field_type.to_kotlin_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),
+            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -468,6 +623,9 @@ impl FieldType {
                 format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
             Self::SchemaRef(name) => name.clone().into(),
+            Self::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
         }
     }
 
@@ -493,7 +651,7 @@ impl FieldType {
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef(name) => name.clone().into(),
+            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -519,6 +677,9 @@ impl FieldType {
             }
             Self::Map { value_ty } => {
                 format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
+            }
+            Self::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
             }
         }
     }
