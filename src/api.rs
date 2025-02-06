@@ -109,6 +109,10 @@ impl Resource {
         }
     }
 
+    pub fn has_operations(&self) -> bool {
+        !self.operations.is_empty()
+    }
+
     pub(crate) fn referenced_components(&self) -> BTreeSet<&str> {
         let mut res = BTreeSet::new();
 
