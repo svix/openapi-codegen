@@ -107,10 +107,12 @@ impl Generator<'_> {
     ) -> anyhow::Result<()> {
         for resource in resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(
-                Some(&resource.name),
-                context! { resource, referenced_components },
-            )?;
+            if resource.has_operations() {
+                self.render_tpl(
+                    Some(&resource.name),
+                    context! { resource, referenced_components },
+                )?;
+            }
             self.generate_api_resources_inner(resource.subresources.values())?;
         }
 
