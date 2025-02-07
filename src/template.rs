@@ -63,7 +63,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
                         .format_with("\n", |line, f| f(&format_args!("* {line}")));
                     return Ok(format!("/**\n{lines}\n*/"));
                 }
-                "rust" => "///",
+                "rust" | "csharp" => "///",
                 "go" => "//",
                 _ => {
                     return Err(minijinja::Error::new(
