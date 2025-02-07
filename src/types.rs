@@ -559,18 +559,25 @@ impl FieldType {
     fn to_csharp_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
-            Self::Int32 |
-            // FIXME: For backwards compatibility. Should be 'long'.
-            Self::Int64 | Self::UInt64 => "int".into(),
+            Self::Int16 => "short".into(),
+            Self::Int32 => "int".into(),
+            Self::Int64 => "long".into(),
+            Self::UInt16 => "ushort".into(),
+            Self::UInt64 => "ulong".into(),
             Self::String => "string".into(),
             Self::DateTime => "DateTime".into(),
-            Self::Int16 | Self::UInt16 | Self::Uri | Self::JsonObject | Self::Map { .. } => todo!(),
-            // FIXME: Treat set differently?
+            Self::Uri => "string".into(),
+            Self::JsonObject => "Object".into(),
+            Self::Map { value_ty } => {
+                format!("Dictionary<string, {}>", value_ty.to_csharp_typename()).into()
+            }
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("List<{}>", field_type.to_csharp_typename()).into()
             }
             Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
         }
     }
 
