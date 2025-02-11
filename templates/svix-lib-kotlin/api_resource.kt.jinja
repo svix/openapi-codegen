@@ -14,28 +14,20 @@ import com.svix.kotlin.models.{{ c | to_upper_camel_case }}
 
 {% for op in resource.operations -%}
     {% if op | has_query_or_header_params -%}
-@Serializable
 data class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(
         {% for p in op.query_params -%}
-        {{ p.name | to_lower_camel_case }}
+        {% set p_ty = p.type.to_kotlin() -%}
+        {% set p_val = "" -%}
+        {% if not p.required -%}
+            {% set p_ty %}{{ p_ty }}?{% endset -%}
+            {% set p_val = "= null" -%}
+        {% endif -%}
+        val {{ p.name | to_lower_camel_case }}: {{ p_ty }} {{ p_val }},
         {% endfor -%}
-            {# {% set f_name = field.name | to_lower_camel_case -%}
-            {% set f_type = field.type.to_kotlin() -%}
-            {% set f_val = "" -%}
-            {% set use_nullable = type.name is endingwith "Patch" and field.nullable -%}
-            {% if use_nullable -%}
-                {% set f_type %}MaybeUnset<{{ f_type }}>{% endset -%}
-            {% endif -%}
-            {% if not field.required and not use_nullable -%}
-                {% set f_type %}{{ f_type }}?{% endset -%}
-                {% set f_val = "= null" -%}
-            {% endif -%}
 
-            {% if field.name | to_lower_camel_case != field.name -%}
-            @SerialName("{{ field.name }}")
-            {% endif -%}
-            val {{ field.name | to_lower_camel_case }}: {{ f_type }} {{ f_val }},
-        {% endfor %} #}
+        {% for p in op.header_params -%}
+        val {{ p.name | to_lower_camel_case }}: String? = null,
+        {% endfor -%}
 )
     {% endif -%}
 {% endfor -%}
@@ -46,7 +38,6 @@ data class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(
 {% set has_query_params = op.query_params | length > 0 -%}
 {% set has_required_query_params =
     op.query_params | selectattr("required") | length > 0 -%}
-{% set has_header_params = op.header_params | length > 0 -%}
 {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="kotlin") }}
 {% if op.deprecated -%}
     @Deprecated
@@ -64,19 +55,13 @@ suspend fun {{ op.name | to_lower_camel_case }}(
     {% endif -%}
 
     {# query parameters -#}
-    {% if has_query_params -%}
+    {% if op | has_query_or_header_params -%}
         {% set field_ty -%}
             {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options
         {%- endset -%}
         options: {{ field_ty }}
         {%- if not has_required_query_params %} = {{ field_ty }}(){% endif -%}
         ,
-    {% endif -%}
-
-    {# PostOptions -#}
-    {% if has_header_params -%}
-        {# for now, only idempotency-key is supported in header params -#}
-        options: PostOptions = PostOptions(),
     {% endif -%}
 )
 {%- if op.response_body_schema_name is defined -%}
@@ -87,14 +72,24 @@ suspend fun {{ op.name | to_lower_camel_case }}(
     {% if op.path_params | length > 0 -%}
         {% set path_variable = op.path | generate_kt_path_str(op.path_params) -%}
     {% endif -%}
+    {% if op.query_params | length > 0 -%}
+    var url = this.newUrlBuilder().encodedPath("{{ path_variable }}")
+        {%- for p in op.query_params -%}
+            {%- if p.required -%}
+        .addQueryParameter("{{ p.name }}", options.{{ p.name | to_lower_camel_case }})
+            {%- endif -%}
+        {%- endfor %}
+        {% for p in op.query_params -%}
+            {% if not p.required -%}
+        options.{{ p.name | to_lower_camel_case }}?.let {url=url.addQueryParameter("{{ p.name }}", it{% if not p.type.is_string() %}.toString(){%endif%})  }
+            {% endif -%}
+        {% endfor -%}
+    {% else -%}
     val url = this.newUrlBuilder()
         {# path params -#}
         .encodedPath("{{ path_variable }}")
-        {# query params -#}
-        {% for p in op.query_params -%}
-        //.addQueryParameter("{{ p.name }}", "ops.{{p.name}}")
-        {% endfor -%}
-        .build()
+    {% endif -%}
+
     {% if op.header_params | length > 0 -%}
     val headers = headersOf(
         {%- for p in op.header_params -%}
@@ -109,7 +104,7 @@ suspend fun {{ op.name | to_lower_camel_case }}(
     {% if not op.response_body_schema_name is defined -%}
         {% set generic_res_type = "Boolean" -%}
     {% endif -%}
-    val res = this.executeRequest<{{ generic_res_type }}>("{{ op.method | upper}}",url
+    {% if op.response_body_schema_name is defined %}return {% endif %}this.executeRequest<{{ generic_res_type }}>("{{ op.method | upper}}",url.build()
     {%- if op.header_params | length > 0 -%}
     ,headers = headers
     {%- endif -%}
@@ -117,9 +112,6 @@ suspend fun {{ op.name | to_lower_camel_case }}(
     ,jsonBody = jsonBody
     {%- endif -%}
     )
-
-    return res!!
-
 }
 
 {% set extra_path -%}
