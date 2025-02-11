@@ -584,16 +584,22 @@ impl FieldType {
     fn to_go_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
-            Self::Int32 |
-            // FIXME: Looks like all integers are currently i32
-            Self::Int64 | Self::UInt64 => "int32".into(),
-            Self::String => "string".into(),
+            Self::Int16 => "int16".into(),
+            Self::Int32 => "int32".into(),
+            Self::Int64 => "int64".into(),
+            Self::UInt16 => "uint16".into(),
+            Self::UInt64 => "uint64".into(),
+            Self::Uri | Self::String => "string".into(),
             Self::DateTime => "time.Time".into(),
-            Self::Int16 | Self::UInt16 | Self::Uri | Self::JsonObject | Self::Map { .. } => todo!(),
+            Self::JsonObject => "map[string]interface{}".into(),
+            Self::Map { value_ty } => format!("map[string]{}", value_ty.to_go_typename()).into(),
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("[]{}", field_type.to_go_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::SchemaRef(name) => name.clone().into(),
+            Self::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
         }
     }
 
@@ -610,7 +616,8 @@ impl FieldType {
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("List<{}>", field_type.to_kotlin_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::SchemaRef(name) => name.clone().into(),
+            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -658,7 +665,8 @@ impl FieldType {
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef(name) => name.clone().into(),Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::SchemaRef(name) => name.clone().into(),
+            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
     }
 
@@ -734,8 +742,16 @@ impl minijinja::value::Object for FieldType {
                 Ok(matches!(**self, Self::DateTime).into())
             }
             "is_schema_ref" => {
-                ensure_no_args(args, "is_datetime")?;
+                ensure_no_args(args, "is_schema_ref")?;
                 Ok(matches!(**self, Self::SchemaRef(_)).into())
+            }
+            "is_set" => {
+                ensure_no_args(args, "is_set")?;
+                Ok(matches!(**self, Self::Set(_)).into())
+            }
+            "is_list" => {
+                ensure_no_args(args, "is_list")?;
+                Ok(matches!(**self, Self::List(_)).into())
             }
 
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
