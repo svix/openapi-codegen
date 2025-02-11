@@ -1,0 +1,11 @@
+// This file is @generated
+package com.svix.kotlin.models
+
+import kotlinx.serialization.SerialName
+
+public enum class  {{ type.name | to_upper_camel_case }}{
+    {% for value in type.values -%}
+    @SerialName("{{ value }}")
+    {{ value | to_upper_snake_case }},
+    {% endfor -%}
+}
