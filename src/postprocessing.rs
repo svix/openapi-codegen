@@ -34,8 +34,8 @@ impl Postprocessor {
 
     pub(crate) fn should_postprocess_single_file(&self) -> bool {
         match self {
-            Self::Rust | Self::Kotlin => true,
-            Self::CSharp | Self::Python | Self::Go => false,
+            Self::Rust => true,
+            Self::CSharp | Self::Python | Self::Go | Self::Kotlin => false,
         }
     }
 
