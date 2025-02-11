@@ -606,13 +606,17 @@ impl FieldType {
     fn to_kotlin_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "Boolean".into(),
-            Self::Int32 |
-            // FIXME: Should be Long..
-            Self::Int64 | Self::UInt64 => "Int".into(),
-            Self::String => "String".into(),
-            Self::DateTime => "OffsetDateTime".into(),
-            Self::Int16 | Self::UInt16 | Self::Uri | Self::JsonObject | Self::Map { .. } => todo!(),
-            // FIXME: Treat set differently?
+            Self::Int16 => "Short".into(),
+            Self::Int32 => "Int".into(),
+            Self::UInt16 => "UShort".into(),
+            Self::Int64 => "Long".into(),
+            Self::UInt64 => "ULong".into(),
+            Self::Uri | Self::String => "String".into(),
+            Self::DateTime => "Instant".into(),
+            Self::Map { value_ty } => {
+                format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
+            }
+            Self::JsonObject => "JsonObject".into(),
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("List<{}>", field_type.to_kotlin_typename()).into()
             }
