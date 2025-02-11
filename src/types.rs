@@ -757,6 +757,11 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_list")?;
                 Ok(matches!(**self, Self::List(_)).into())
             }
+            "is_string" => {
+                ensure_no_args(args, "is_string")?;
+                Ok(matches!(**self, Self::String).into())
+            }
+
 
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
