@@ -591,7 +591,7 @@ impl FieldType {
             Self::UInt64 => "uint64".into(),
             Self::Uri | Self::String => "string".into(),
             Self::DateTime => "time.Time".into(),
-            Self::JsonObject => "map[string]interface{}".into(),
+            Self::JsonObject => "map[string]any".into(),
             Self::Map { value_ty } => format!("map[string]{}", value_ty.to_go_typename()).into(),
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("[]{}", field_type.to_go_typename()).into()
