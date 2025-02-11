@@ -34,8 +34,8 @@ impl Postprocessor {
 
     pub(crate) fn should_postprocess_single_file(&self) -> bool {
         match self {
-            Self::Rust | Self::Kotlin | Self::Go => true,
-            Self::CSharp | Self::Python => false,
+            Self::Rust | Self::Kotlin => true,
+            Self::CSharp | Self::Python | Self::Go => false,
         }
     }
 
@@ -59,7 +59,7 @@ impl Postprocessor {
                     "2021",
                 ],
             )],
-            Self::Go => &[("gofmt", &["-w"])],
+            Self::Go => &[("goimports", &["-w"]), ("gofmt", &["-w"])],
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
             Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
         }
