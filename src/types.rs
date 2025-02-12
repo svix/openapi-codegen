@@ -620,7 +620,9 @@ impl FieldType {
             Self::List(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
             Self::Set(field_type) => format!("Set<{}>", field_type.to_kotlin_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
         }
     }
 
