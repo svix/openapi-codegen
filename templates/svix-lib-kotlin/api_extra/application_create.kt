@@ -1,11 +1,16 @@
 /** Get or create an application. */
 suspend fun getOrCreate(
     applicationIn: ApplicationIn,
-    options: PostOptions = PostOptions(),
+    options: ApplicationCreateOptions = ApplicationCreateOptions()
 ): ApplicationOut {
-    try {
-        return api.v1ApplicationCreate(applicationIn, true, options.idempotencyKey)
-    } catch (e: Exception) {
-        throw ApiException.wrap(e)
-    }
+    val url = this.newUrlBuilder().encodedPath("/api/v1/app").addQueryParameter("get_if_exists","true")
+    var headers = Headers.Builder()
+    options.idempotencyKey?.let { headers = headers.add("idempotency-key", it) }
+
+    return this.executeRequest<ApplicationIn, ApplicationOut>(
+        "POST",
+        url.build(),
+        headers = headers.build(),
+        reqBody = applicationIn,
+    )
 }
