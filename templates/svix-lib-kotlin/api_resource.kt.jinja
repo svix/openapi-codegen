@@ -85,7 +85,7 @@ suspend fun {{ op.name | to_lower_camel_case }}(
         {%- endfor %}
         {% for p in op.query_params -%}
             {% if not p.required -%}
-        options.{{ p.name | to_lower_camel_case }}?.let {url=url.addQueryParameter("{{ p.name }}", it{% if not p.type.is_string() %}.toString(){%endif%})  }
+        options.{{ p.name | to_lower_camel_case }}?.let {url=url.addQueryParameter("{{ p.name }}", {% if p.type.is_string() %}it{% else %}serializeQueryParam(it){% endif %})  }
             {% endif -%}
         {% endfor -%}
     {% else -%}
