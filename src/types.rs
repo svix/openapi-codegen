@@ -617,9 +617,8 @@ impl FieldType {
                 format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
             }
             Self::JsonObject => "JsonObject".into(),
-            Self::List(field_type) | Self::Set(field_type) => {
-                format!("List<{}>", field_type.to_kotlin_typename()).into()
-            }
+            Self::List(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
+            Self::Set(field_type) => format!("Set<{}>", field_type.to_kotlin_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),
             Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
         }
@@ -761,7 +760,6 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_string")?;
                 Ok(matches!(**self, Self::String).into())
             }
-
 
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
