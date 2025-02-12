@@ -16,7 +16,7 @@ data class {{ type.name | to_upper_camel_case }}(
     {% set use_nullable = type.name is endingwith "Patch" and field.nullable -%}
     {% if use_nullable -%}
         {% set f_type %}MaybeUnset<{{ f_type }}>{% endset -%}
-        {% set f_val = "= MaybeUnset.Undefined" -%}
+        {% set f_val = "= MaybeUnset.Unset" -%}
     {% endif -%}
     {% if not field.required and not use_nullable -%}
         {% set f_type %}{{ f_type }}?{% endset -%}
