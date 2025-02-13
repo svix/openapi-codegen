@@ -616,7 +616,7 @@ impl FieldType {
             Self::Map { value_ty } => {
                 format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
             }
-            Self::JsonObject => "JsonObject".into(),
+            Self::JsonObject => "Map<String,Any>".into(),
             Self::List(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
             Self::Set(field_type) => format!("Set<{}>", field_type.to_kotlin_typename()).into(),
             Self::SchemaRef(name) => name.clone().into(),
@@ -761,6 +761,10 @@ impl minijinja::value::Object for FieldType {
             "is_string" => {
                 ensure_no_args(args, "is_string")?;
                 Ok(matches!(**self, Self::String).into())
+            }
+            "is_json_object" => {
+                ensure_no_args(args, "is_json_object")?;
+                Ok(matches!(**self, Self::JsonObject).into())
             }
 
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
