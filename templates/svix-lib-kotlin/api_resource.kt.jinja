@@ -34,7 +34,7 @@ data class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(
 {% endfor -%}
 
 
-class {{ resource_type_name }}(baseUrl: HttpUrl, defaultHeaders: Map<String, String>) : SvixHttpClient(baseUrl, defaultHeaders) {
+class {{ resource_type_name }}(private val client: SvixHttpClient) {
 
 
 {% for op in resource.operations -%}
@@ -77,7 +77,7 @@ suspend fun {{ op.name | to_lower_camel_case }}(
         {% set path_variable = op.path | generate_kt_path_str(op.path_params) -%}
     {% endif -%}
     {% if op.query_params | length > 0 -%}
-    var url = this.newUrlBuilder().encodedPath("{{ path_variable }}")
+    val url = client.newUrlBuilder().encodedPath("{{ path_variable }}")
         {%- for p in op.query_params -%}
             {%- if p.required -%}
         .addQueryParameter("{{ p.name }}", options.{{ p.name | to_lower_camel_case }})
@@ -85,19 +85,19 @@ suspend fun {{ op.name | to_lower_camel_case }}(
         {%- endfor %}
         {% for p in op.query_params -%}
             {% if not p.required -%}
-        options.{{ p.name | to_lower_camel_case }}?.let {url=url.addQueryParameter("{{ p.name }}", {% if p.type.is_string() %}it{% else %}serializeQueryParam(it){% endif %})  }
+        options.{{ p.name | to_lower_camel_case }}?.let {url.addQueryParameter("{{ p.name }}", {% if p.type.is_string() %}it{% else %}serializeQueryParam(it){% endif %})  }
             {% endif -%}
         {% endfor -%}
     {% else -%}
-    val url = this.newUrlBuilder()
+    val url = client.newUrlBuilder()
         {# path params -#}
         .encodedPath("{{ path_variable }}")
     {% endif -%}
 
     {% if op.header_params | length > 0 -%}
-    var headers = Headers.Builder()
+    val headers = Headers.Builder()
     {% for p in op.header_params -%}
-    options.{{ p.name | to_lower_camel_case }}?.let { headers = headers.add("{{ p.name }}",it) }
+    options.{{ p.name | to_lower_camel_case }}?.let { headers.add("{{ p.name }}",it) }
     {% endfor -%}
     {% endif -%}
 
@@ -109,7 +109,7 @@ suspend fun {{ op.name | to_lower_camel_case }}(
     {% if op.request_body_schema_name is defined -%}
         {% set generic_req_type = op.request_body_schema_name %}
     {% endif -%}
-    {% if op.response_body_schema_name is defined %}return {% endif %}this.executeRequest<{{ generic_req_type }},{{ generic_res_type }}>("{{ op.method | upper}}",url.build()
+    {% if op.response_body_schema_name is defined %}return {% endif %}client.executeRequest<{{ generic_req_type }},{{ generic_res_type }}>("{{ op.method | upper}}",url.build()
     {%- if op.header_params | length > 0 -%}
     ,headers = headers.build()
     {%- endif -%}
