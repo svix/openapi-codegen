@@ -1,3 +1,4 @@
+
 /**
  * Creates a [MessageIn] with a pre-serialized payload.
  *
@@ -22,24 +23,24 @@ fun messageInRaw(
     payloadRetentionHours: Long? = null,
     payloadRetentionPeriod: Long? = 90L,
     tags: Set<String>? = null,
-    transformationsParams: Map<String, Any> = mapOf(),
+    transformationsParams: Map<String, JsonElement> = mapOf(),
 ): MessageIn {
     val transformationsParams = transformationsParams.toMutableMap()
-    transformationsParams.put("rawPayload", payload)
+    transformationsParams["rawPayload"] = JsonPrimitive(payload)
     if (contentType != null) {
-        val headers = mapOf("content-type" to contentType)
-        transformationsParams.put("headers", headers)
+        val headers = mapOf("content-type" to JsonPrimitive(contentType))
+        transformationsParams["headers"] = JsonObject(headers)
     }
 
     return MessageIn(
         eventType = eventType,
-        payload = mapOf<String, String>(),
+        payload = JsonObject(mapOf()),
         application = application,
         channels = channels,
         eventId = eventId,
         payloadRetentionHours = payloadRetentionHours,
         payloadRetentionPeriod = payloadRetentionPeriod,
         tags = tags,
-        transformationsParams = transformationsParams,
+        transformationsParams = JsonObject(transformationsParams),
     )
 }

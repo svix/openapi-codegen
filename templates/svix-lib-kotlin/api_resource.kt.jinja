@@ -2,13 +2,15 @@
 // this file is @generated
 package com.svix.kotlin
 
-import okhttp3.Headers
-import okhttp3.HttpUrl
-import com.svix.kotlin.MaybeUnset
+import com.svix.kotlin.models.ApplicationIn
+import com.svix.kotlin.models.ListResponseMessageOut
+import com.svix.kotlin.models.MessageIn
+import com.svix.kotlin.models.MessageOut
 import kotlinx.datetime.Instant
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.Headers
 {% for c in referenced_components -%}
 import com.svix.kotlin.models.{{ c | to_upper_camel_case }}
 {% endfor %}
@@ -126,3 +128,7 @@ api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.kt
 {% endfor -%}
 
 }
+
+
+{% set resource_extra_path %}api_extra/{{ resource.name | to_snake_case }}.kt{%- endset -%}
+{% include resource_extra_path ignore missing %}
