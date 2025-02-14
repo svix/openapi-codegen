@@ -18,7 +18,7 @@ import {
             or inner_t.is_list()
             or inner_t.is_set()
             or inner_t.is_map() -%}
-            .map((item) => {{ field_from_json("item", inner_t) }})
+            .map((item: {{ inner_t.to_js() }}) => {{ field_from_json("item", inner_t) }})
         {%- endif -%}
     {%- elif type.is_map() -%}
         {%- set value_t = type.value_type() -%}
@@ -28,7 +28,7 @@ import {
             or value_t.is_set()
             or value_t.is_map() -%}
             Object.fromEntries(Object.entries({{ field_expr }}).map(
-                (item) => [item[0], {{ field_from_json("item[1]", value_t) }}]
+                (item : {{ inner_t.to_js() }}) => [item[0], {{ field_from_json("item[1]", value_t) }}]
             ))
         {%- else -%}
             {{ field_expr }}
@@ -38,9 +38,13 @@ import {
     {%- endif -%}
 {% endmacro -%}
 
-{% macro field_to_json(field_expr, type) %}
+{% macro field_to_json(field_expr, type, field_required) %}
     {%- if type.is_schema_ref() -%}
+        {%- if not field_required -%}
+        {{ field_expr }} ? {{ type.to_js() }}Util._toJsonObject({{ field_expr }}) : undefined
+        {%- else -%}
         {{ type.to_js() }}Util._toJsonObject({{ field_expr }})
+        {%- endif -%}
     {%- elif type.is_list() or type.is_set() -%}
         {{ field_expr }}
         {%- set inner_t = type.inner_type() -%}
@@ -48,7 +52,8 @@ import {
             or inner_t.is_list()
             or inner_t.is_set()
             or inner_t.is_map() -%}
-            .map((item) => {{ field_to_json("item", inner_t) }})
+            {%- if not field_required -%}?{% endif -%}
+            .map((item) => {{ field_to_json("item", inner_t, true) }})
         {%- endif -%}
     {%- elif type.is_map() -%}
         {%- set value_t = type.value_type() -%}
@@ -57,7 +62,7 @@ import {
             or value_t.is_set()
             or value_t.is_map() -%}
             Object.fromEntries(Object.entries({{ field_expr }}).map(
-                (item) => [item[0], {{ field_to_json("item[1]", value_t) }}]
+                (item) => [item[0], {{ field_to_json("item[1]", value_t, true) }}]
             ))
         {%- else -%}
             {{ field_expr }}
