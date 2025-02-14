@@ -762,6 +762,10 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_map")?;
                 Ok(matches!(**self, Self::Map { .. }).into())
             }
+            "is_string" => {
+                ensure_no_args(args, "is_string")?;
+                Ok(matches!(**self, Self::String).into())
+            }
 
             // Returns the inner type of a list or set
             "inner_type" => {
@@ -786,18 +790,6 @@ impl minijinja::value::Object for FieldType {
                     _ => None,
                 };
                 Ok(ty.into())
-            }
-            "is_set" => {
-                ensure_no_args(args, "is_set")?;
-                Ok(matches!(**self, Self::Set(_)).into())
-            }
-            "is_list" => {
-                ensure_no_args(args, "is_list")?;
-                Ok(matches!(**self, Self::List(_)).into())
-            }
-            "is_string" => {
-                ensure_no_args(args, "is_string")?;
-                Ok(matches!(**self, Self::String).into())
             }
 
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
