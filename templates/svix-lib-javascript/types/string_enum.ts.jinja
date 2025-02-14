@@ -5,7 +5,7 @@ export enum {{ type.name | to_upper_camel_case }} {
     {% endfor -%}
 }
 
-export const {{ type.name | to_upper_camel_case }}Util = {
+export const {{ type.name | to_upper_camel_case }}Serializer = {
     _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
         return object;
     },

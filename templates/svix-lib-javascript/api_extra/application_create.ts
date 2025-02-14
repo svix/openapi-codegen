@@ -7,7 +7,7 @@ public getOrCreate(
 
   request.setQueryParam("get_if_exists", true);
   request.setHeaderParam("idempotency-key", options?.idempotencyKey);
-  request.setBody(applicationIn, "ApplicationIn");
+  request.setBody(ApplicationInSerializer._toJsonObject(applicationIn));
 
-  return request.send(this.requestCtx, "ApplicationOut");
+  return request.send(this.requestCtx, ApplicationOutSerializer._fromJsonObject);
 }

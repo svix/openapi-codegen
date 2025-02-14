@@ -4,7 +4,7 @@
 {% for c in referenced_components -%}
 import {
     {{ c | to_upper_camel_case }},
-    {{ c | to_upper_camel_case }}Util,
+    {{ c | to_upper_camel_case }}Serializer,
 } from '../models/{{ c | to_snake_case }}';
 {% endfor -%}
 import { HttpMethod, SvixRequest, SvixRequestContext } from "../request";
@@ -79,7 +79,7 @@ export class {{ resource_type_name }} {
             {# body parameter -#}
             {% if op.request_body_schema_name is defined -%}
                 request.setBody(
-                    {{ op.request_body_schema_name | to_upper_camel_case }}Util._toJsonObject(
+                    {{ op.request_body_schema_name | to_upper_camel_case }}Serializer._toJsonObject(
                         {{ op.request_body_schema_name | to_lower_camel_case }},
                     )
                 );
@@ -88,7 +88,7 @@ export class {{ resource_type_name }} {
             {% if op.response_body_schema_name is defined %}
                 return request.send(
                     this.requestCtx,
-                    {{ op.response_body_schema_name | to_upper_camel_case }}Util._fromJsonObject,
+                    {{ op.response_body_schema_name | to_upper_camel_case }}Serializer._fromJsonObject,
                 );
             {% else %}
                 return request.sendNoResponseBody(this.requestCtx);

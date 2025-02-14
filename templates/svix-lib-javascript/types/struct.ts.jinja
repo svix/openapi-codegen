@@ -1,7 +1,7 @@
 {% for c in referenced_components -%}
 import {
     {{ c | to_upper_camel_case }},
-    {{ c | to_upper_camel_case }}Util,
+    {{ c | to_upper_camel_case }}Serializer,
 } from '../models/{{ c | to_snake_case }}';
 {% endfor -%}
 
@@ -9,7 +9,7 @@ import {
     {%- if type.is_datetime() -%}
         new Date({{ field_expr }})
     {%- elif type.is_schema_ref() -%}
-        {{ type.to_js() }}Util._fromJsonObject({{ field_expr }})
+        {{ type.to_js() }}Serializer._fromJsonObject({{ field_expr }})
     {%- elif type.is_list() or type.is_set() -%}
         {{ field_expr }}
         {%- set inner_t = type.inner_type() -%}
@@ -41,9 +41,9 @@ import {
 {% macro field_to_json(field_expr, type, field_required) %}
     {%- if type.is_schema_ref() -%}
         {%- if not field_required -%}
-        {{ field_expr }} ? {{ type.to_js() }}Util._toJsonObject({{ field_expr }}) : undefined
+        {{ field_expr }} ? {{ type.to_js() }}Serializer._toJsonObject({{ field_expr }}) : undefined
         {%- else -%}
-        {{ type.to_js() }}Util._toJsonObject({{ field_expr }})
+        {{ type.to_js() }}Serializer._toJsonObject({{ field_expr }})
         {%- endif -%}
     {%- elif type.is_list() or type.is_set() -%}
         {{ field_expr }}
@@ -86,7 +86,7 @@ export interface {{ type.name | to_upper_camel_case }} {
     {% endfor -%}
 }
 
-export const {{ type.name | to_upper_camel_case }}Util = {
+export const {{ type.name | to_upper_camel_case }}Serializer = {
     _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
         return {
             {% for field in type.fields -%}
