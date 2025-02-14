@@ -25,6 +25,9 @@ data class {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options(
             {% set p_ty %}{{ p_ty }}?{% endset -%}
             {% set p_val = "= null" -%}
         {% endif -%}
+        {% if p.description is defined -%}
+        {{ p.description | to_doc_comment(style="kotlin") }}
+        {% endif -%}
         val {{ p.name | to_lower_camel_case }}: {{ p_ty }} {{ p_val }},
         {% endfor -%}
 
