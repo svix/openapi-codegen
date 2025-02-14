@@ -5,7 +5,7 @@
 import {
     {{ c | to_upper_camel_case }},
     {{ c | to_upper_camel_case }}Serializer,
-} from '../models/{{ c | to_snake_case }}';
+} from '../models/{{ c | to_lower_camel_case }}';
 {% endfor -%}
 import { HttpMethod, SvixRequest, SvixRequestContext } from "../request";
 
