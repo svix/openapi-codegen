@@ -81,21 +81,21 @@ export interface {{ type.name | to_upper_camel_case }} {
     {% endfor -%}
 }
 
-export namespace {{ type.name | to_upper_camel_case }}Util {
-    export function _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
+export const {{ type.name | to_upper_camel_case }}Util = {
+    _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
         return {
             {% for field in type.fields -%}
                 {% set field_expr %}object['{{ field.name }}']{% endset -%}
                 {{ field.name | to_lower_camel_case }}: {{ field_from_json(field_expr, field.type) }},
             {% endfor -%}
         };
-    }
+    },
 
-    export function _toJsonObject(self: {{ type.name | to_upper_camel_case }}): any {
+    _toJsonObject(self: {{ type.name | to_upper_camel_case }}): any {
         return {
             {% for field in type.fields -%}
                 {% set field_expr %}self.{{ field.name | to_lower_camel_case }}{% endset -%}
-                '{{ field.name }}': {{ field_to_json(field_expr, field.type) }},
+                '{{ field.name }}': {{ field_to_json(field_expr, field.type, field.required) }},
             {% endfor -%}
         };
     }

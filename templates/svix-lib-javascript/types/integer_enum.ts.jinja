@@ -5,12 +5,12 @@ export enum {{ type.name | to_upper_camel_case }} {
     {% endfor -%}
 }
 
-export namespace {{ type.name | to_upper_camel_case }}Util {
-    export function _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
+export const {{ type.name | to_upper_camel_case }}Util = {
+    _fromJsonObject(object: any): {{ type.name | to_upper_camel_case }} {
         return object;
-    }
+    },
 
-    export function _toJsonObject(self: {{ type.name | to_upper_camel_case }}): any {
+    _toJsonObject(self: {{ type.name | to_upper_camel_case }}): any {
         return self;
     }
 }
