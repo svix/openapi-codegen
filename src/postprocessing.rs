@@ -4,6 +4,7 @@ use camino::Utf8Path;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Postprocessor {
+    TypeScript,
     Python,
     Rust,
     Go,
@@ -14,6 +15,7 @@ pub(crate) enum Postprocessor {
 impl Postprocessor {
     pub(crate) fn from_ext(ext: &str) -> Option<Self> {
         match ext {
+            "ts" => Some(Self::TypeScript),
             "py" => Some(Self::Python),
             "rs" => Some(Self::Rust),
             "go" => Some(Self::Go),
@@ -35,7 +37,7 @@ impl Postprocessor {
     pub(crate) fn should_postprocess_single_file(&self) -> bool {
         match self {
             Self::Rust => true,
-            Self::CSharp | Self::Python | Self::Go | Self::Kotlin => false,
+            Self::CSharp | Self::Python | Self::Go | Self::Kotlin | Self::TypeScript => false,
         }
     }
 
@@ -62,6 +64,17 @@ impl Postprocessor {
             Self::Go => &[("goimports", &["-w"]), ("gofmt", &["-w"])],
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
             Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
+            Self::TypeScript => &[(
+                "npx",
+                &[
+                    "prettier",
+                    "--write",
+                    "--print-width",
+                    "90",
+                    "--trailing-comma",
+                    "es5",
+                ],
+            )],
         }
     }
 }
