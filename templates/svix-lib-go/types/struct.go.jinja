@@ -14,7 +14,7 @@ type {{ type.name | to_upper_camel_case }} struct {
         {% if use_nullable -%}
             {% set f_type %}utils.Nullable[{{ f_type }}]{% endset -%}
         {% endif -%}
-        {% if not field.required and not use_nullable -%}
+        {% if (not field.required or field.nullable) and not use_nullable -%}
             {% set json_annotation = ",omitempty" -%}
             {% if not field.type.is_set() and not field.type.is_list() -%}
                 {% set f_type %}*{{ f_type }}{% endset -%}
