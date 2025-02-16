@@ -45,7 +45,7 @@ pub struct {{ type.name | to_upper_camel_case }} {
             {% set field_ty = field.type.to_rust() -%}
         {% endif -%}
 
-        {% if not field.required -%}
+        {% if not field.required or field.nullable -%}
             {# only for patch requests, if the field is both non-required
                and nullable, use JsOption -#}
             {% if type.name is endingwith "Patch" and field.nullable -%}
@@ -69,7 +69,7 @@ impl {{ type.name | to_upper_camel_case }} {
             {% else -%}
                 {% set field_ty = field.type.to_rust() -%}
             {% endif -%}
-            {% if field.required -%}
+            {% if field.required and not field.nullable -%}
                 {{ field.name | to_snake_case }}: {{ field_ty }},
             {% endif -%}
         {% endfor -%}
@@ -79,7 +79,7 @@ impl {{ type.name | to_upper_camel_case }} {
         {% endif -%}
         Self {
             {% for field in type.fields -%}
-                {% if field.required -%}
+                {% if field.required and not field.nullable -%}
                     {{ field.name | to_snake_case }},
                 {% elif type.name is endingwith "Patch" and field.nullable -%}
                     {{ field.name | to_snake_case }}: JsOption::Undefined,
