@@ -1,46 +1,79 @@
-use std::{collections::BTreeSet, io, process::Command, sync::Mutex};
+use std::{cell::RefCell, collections::BTreeSet, io, process::Command, sync::Mutex};
 
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 
+#[derive(Debug, Clone)]
+pub(crate) struct Postprocessor {
+    files_to_process: RefCell<Vec<Utf8PathBuf>>,
+    postprocessor_lang: PostprocessorLanguage,
+    output_dir: Utf8PathBuf,
+}
+impl Postprocessor {
+    fn new(postprocessor_lang: PostprocessorLanguage, output_dir: Utf8PathBuf) -> Self {
+        Self {
+            files_to_process: RefCell::new(Vec::new()),
+            postprocessor_lang,
+            output_dir,
+        }
+    }
+    pub(crate) fn from_ext(ext: &str, output_dir: &Utf8Path) -> Self {
+        let lang = match ext {
+            "py" => PostprocessorLanguage::Python,
+            "rs" => PostprocessorLanguage::Rust,
+            "go" => PostprocessorLanguage::Go,
+            "kt" => PostprocessorLanguage::Kotlin,
+            "cs" => PostprocessorLanguage::CSharp,
+            "java" => PostprocessorLanguage::Java,
+            _ => {
+                tracing::warn!("no known postprocessing command(s) for {ext} files");
+                PostprocessorLanguage::Unknown
+            }
+        };
+        Self::new(lang, output_dir.to_path_buf())
+    }
+
+    pub(crate) fn run_postprocessor(&self) {
+        match self.postprocessor_lang {
+            // pass each file to postprocessor at once
+            PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
+                let commands = self.postprocessor_lang.postprocessing_commands();
+                for (command, args) in commands {
+                    execute_command(command, args, &self.files_to_process.borrow());
+                }
+            }
+            // pass output dir to postprocessor
+            PostprocessorLanguage::Python
+            | PostprocessorLanguage::Go
+            | PostprocessorLanguage::Kotlin
+            | PostprocessorLanguage::CSharp => {
+                let commands = self.postprocessor_lang.postprocessing_commands();
+                for (command, args) in commands {
+                    execute_command(command, args, &vec![self.output_dir.clone()]);
+                }
+            }
+            PostprocessorLanguage::Unknown => (),
+        }
+    }
+    pub(crate) fn add_path(&self, path: &Utf8Path) {
+        let mut v = self.files_to_process.borrow_mut();
+        v.push(path.to_path_buf());
+    }
+}
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Postprocessor {
+pub(crate) enum PostprocessorLanguage {
     Python,
     Rust,
     Go,
     Kotlin,
     CSharp,
+    Java,
+    Unknown,
 }
 
-impl Postprocessor {
-    pub(crate) fn from_ext(ext: &str) -> Option<Self> {
-        match ext {
-            "py" => Some(Self::Python),
-            "rs" => Some(Self::Rust),
-            "go" => Some(Self::Go),
-            "kt" => Some(Self::Kotlin),
-            "cs" => Some(Self::CSharp),
-            _ => {
-                tracing::warn!("no known postprocessing command(s) for {ext} files");
-                None
-            }
-        }
-    }
-
-    pub(crate) fn postprocess_path(&self, path: &Utf8Path) {
-        for (command, args) in self.postprocessing_commands() {
-            execute_postprocessing_command(path, command, args);
-        }
-    }
-
-    pub(crate) fn should_postprocess_single_file(&self) -> bool {
-        match self {
-            Self::Rust => true,
-            Self::CSharp | Self::Python | Self::Go | Self::Kotlin => false,
-        }
-    }
-
+impl PostprocessorLanguage {
     fn postprocessing_commands(&self) -> &[(&'static str, &[&str])] {
         match self {
+            Self::Unknown => &[],
             Self::Python => &[
                 ("ruff", &["check", "--no-respect-gitignore", "--fix"]), // First lint and remove unused imports
                 (
@@ -62,12 +95,13 @@ impl Postprocessor {
             Self::Go => &[("goimports", &["-w"]), ("gofmt", &["-w"])],
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
             Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
+            Self::Java => &[("google-java-format", &["-i", "-a"])],
         }
     }
 }
 
-fn execute_postprocessing_command(path: &Utf8Path, command: &'static str, args: &[&str]) {
-    let result = Command::new(command).args(args).arg(path).status();
+fn execute_command(command: &'static str, args: &[&str], paths: &Vec<Utf8PathBuf>) {
+    let result = Command::new(command).args(args).args(paths).status();
     match result {
         Ok(exit_status) if exit_status.success() => {}
         Ok(exit_status) => {
