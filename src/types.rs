@@ -706,11 +706,10 @@ impl FieldType {
     fn to_java_typename(&self) -> Cow<'_, str> {
         match self {
             // _ => "String".into(),
-            FieldType::Bool => "boolean".into(),
-            FieldType::Int16 => "short".into(),
-            FieldType::UInt16 | FieldType::UInt64 => "long".into(),
-            FieldType::Int32 => "int".into(),
-            FieldType::Int64 => "long".into(),
+            FieldType::Bool => "Boolean".into(),
+            FieldType::Int16 => "Short".into(),
+            FieldType::UInt16 | FieldType::UInt64 |FieldType::Int64 => "Long".into(),
+            FieldType::Int32 => "Integer".into(),
             FieldType::String => "String".into(),
             FieldType::DateTime => "OffsetDateTime".into(),
             FieldType::Uri => "URI".into(),
