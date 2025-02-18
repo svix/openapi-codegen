@@ -1,0 +1,83 @@
+// This file is @generated
+package com.svix.models;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.List;
+import java.util.Optional;
+import java.time.OffsetDateTime;
+import java.net.URI;
+
+import lombok.NonNull;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+
+
+@Data
+@NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class {{ type.name | to_upper_camel_case }} {
+{% for field in type.fields -%}
+    {% set field_ty = field.type.to_java() -%}
+    {% set field_annotation = "" -%}
+
+    {# ensure json field name is correct -#}
+    {% if field.name != field.name | to_lower_camel_case -%}
+        {% set field_annotation %}{{ field_annotation }} @JsonProperty("{{ field.name }}"){% endset -%}
+    {% endif -%}
+
+    {# none nullable fields -#}
+    {% if not field.nullable -%}
+        {% set field_annotation %}{{ field_annotation }} @NonNull{% endset -%}
+    {% endif -%}
+
+    {# *Patch fields -#}
+    {% if type.name is endingwith "Patch" and field.nullable -%}
+        {% set field_ty %}Optional<{{ field_ty }}>{% endset -%}
+    {% endif %}
+    {{ field_annotation}} {{ field_ty }} {{ field.name | to_lower_camel_case }};
+{% endfor -%}
+}
+
+
+{# import com.svix.kotlin.MaybeUnset
+import kotlinx.datetime.Instant
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import com.svix.kotlin.StringAnyMapSerializer
+import com.svix.kotlin.MaybeUnsetStringAnyMapSerializer
+
+
+
+@Serializable
+data class {{ type.name | to_upper_camel_case }}(
+{% for field in type.fields -%}
+    {% set f_name = field.name | to_lower_camel_case -%}
+    {% set f_type = field.type.to_kotlin() -%}
+    {% set f_val = "" -%}
+    {% set use_nullable = type.name is endingwith "Patch" and field.nullable -%}
+    {% if use_nullable -%}
+        {% set f_type %}MaybeUnset<{{ f_type }}>{% endset -%}
+        {% set f_val = "= MaybeUnset.Unset" -%}
+    {% endif -%}
+    {% if (not field.required or field.nullable) and not use_nullable -%}
+        {% set f_type %}{{ f_type }}?{% endset -%}
+        {% set f_val = "= null" -%}
+    {% endif -%}
+
+    {% if field.name | to_lower_camel_case != field.name -%}
+    @SerialName("{{ field.name }}")
+    {% endif -%}
+    {% if field.type.is_json_object() and not use_nullable -%}
+    @Serializable(with = StringAnyMapSerializer::class)
+    {% elif field.type.is_json_object() and use_nullable -%}
+    @Serializable(with = MaybeUnsetStringAnyMapSerializer::class)
+    {% endif -%}
+    val {{ field.name | to_lower_camel_case }}: {{ f_type }} {{ f_val }},
+{% endfor %}
+) #}

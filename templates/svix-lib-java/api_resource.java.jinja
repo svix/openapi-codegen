@@ -1,0 +1,33 @@
+{% set resource_type_name = resource.name | to_upper_camel_case -%}
+// this file is @generated
+package com.svix.api;
+
+{% for c in referenced_components -%}
+import com.svix.models.{{ c | to_upper_camel_case }};
+{% endfor %}
+
+
+public class {{ resource_type_name }}{
+{% for op in resource.operations -%}
+    {% set res_type = "void" -%}
+    {% if op.response_body_schema_name is defined -%}
+        {% set res_type = op.response_body_schema_name | replace("_", "") -%}
+    {% endif -%}
+    {% set has_query_params = op.query_params | length > 0 -%}
+    {% set has_required_query_params =
+        op.query_params | selectattr("required") | length > 0 -%}
+    {% set op_name = op.name | to_lower_camel_case -%}
+    {% if op_name == "import" -%}
+        {% set op_name = "import_" -%}
+    {% endif -%}
+
+    {{ op.description | with_javadoc_deprecation(op.deprecated) | to_doc_comment(style="java") }}
+{% if op.deprecated -%}
+    @Deprecated
+{% endif -%}
+    public {{ res_type }} {{ op_name }}(){
+        throw new RuntimeException("");
+    }
+
+{% endfor %}
+}
