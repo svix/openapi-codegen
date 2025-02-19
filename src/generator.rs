@@ -3,7 +3,7 @@ use std::{fs, io::BufWriter};
 use anyhow::{bail, Context as _};
 use camino::Utf8Path;
 use fs_err::File;
-use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
+use heck::{ToLowerCamelCase, ToSnakeCase as _, ToUpperCamelCase as _};
 use minijinja::{context, Template};
 use serde::Deserialize;
 
@@ -138,7 +138,8 @@ impl Generator<'_> {
     fn render_tpl(&self, output_name: Option<&str>, ctx: minijinja::Value) -> anyhow::Result<()> {
         let tpl_file_ext = self.tpl_file_ext;
         let basename = match (output_name, tpl_file_ext) {
-            (Some(name), "cs" | "java" | "kt" | "ts") => name.to_upper_camel_case(),
+            (Some(name), "ts") => name.to_lower_camel_case(),
+            (Some(name), "cs" | "java" | "kt") => name.to_upper_camel_case(),
             (Some(name), _) => name.to_snake_case(),
             (None, "py") => "__init__".to_owned(),
             (None, "rs") => "mod".to_owned(),
