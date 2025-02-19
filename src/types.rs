@@ -633,7 +633,7 @@ impl FieldType {
                 "number".into()
             }
             Self::String | Self::Uri => "string".into(),
-            Self::DateTime => "Date | null".into(),
+            Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("{}[]", field_type.to_js_typename()).into()
