@@ -24,6 +24,7 @@ impl Postprocessor {
             "kt" => PostprocessorLanguage::Kotlin,
             "cs" => PostprocessorLanguage::CSharp,
             "java" => PostprocessorLanguage::Java,
+            "ts" => PostprocessorLanguage::TypeScript,
             _ => {
                 tracing::warn!("no known postprocessing command(s) for {ext} files");
                 PostprocessorLanguage::Unknown
@@ -45,7 +46,8 @@ impl Postprocessor {
             PostprocessorLanguage::Python
             | PostprocessorLanguage::Go
             | PostprocessorLanguage::Kotlin
-            | PostprocessorLanguage::CSharp => {
+            | PostprocessorLanguage::CSharp
+            | PostprocessorLanguage::TypeScript => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
                     execute_command(command, args, &vec![self.output_dir.clone()]);
@@ -67,6 +69,7 @@ pub(crate) enum PostprocessorLanguage {
     Kotlin,
     CSharp,
     Java,
+    TypeScript,
     Unknown,
 }
 
@@ -74,6 +77,7 @@ impl PostprocessorLanguage {
     fn postprocessing_commands(&self) -> &[(&'static str, &[&str])] {
         match self {
             Self::Unknown => &[],
+            // https://github.com/astral-sh/ruff
             Self::Python => &[
                 ("ruff", &["check", "--no-respect-gitignore", "--fix"]), // First lint and remove unused imports
                 (
@@ -92,10 +96,41 @@ impl PostprocessorLanguage {
                     "2021",
                 ],
             )],
+            // https://pkg.go.dev/golang.org/x/tools/cmd/goimports
             Self::Go => &[("goimports", &["-w"]), ("gofmt", &["-w"])],
+            // https://github.com/facebook/ktfmt
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
+            // https://github.com/belav/csharpier
             Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
+            // https://github.com/google/google-java-format
             Self::Java => &[("google-java-format", &["-i", "-a"])],
+            // https://github.com/biomejs/biome
+            Self::TypeScript => &[
+                (
+                    "biome",
+                    &["lint", "--only=correctness/noUnusedImports", "--write"],
+                ),
+                (
+                    "biome",
+                    &[
+                        "check",
+                        "--formatter-enabled=false",
+                        "--linter-enabled=false",
+                        "--organize-imports-enabled=true",
+                        "--write",
+                    ],
+                ),
+                (
+                    "biome",
+                    &[
+                        "format",
+                        "--trailing-commas=es5",
+                        "--indent-style=space",
+                        "--line-width=90",
+                        "--write",
+                    ],
+                ),
+            ],
         }
     }
 }
