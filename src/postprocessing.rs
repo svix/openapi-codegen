@@ -4,6 +4,7 @@ use camino::Utf8Path;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Postprocessor {
+    TypeScript,
     Python,
     Rust,
     Go,
@@ -14,6 +15,7 @@ pub(crate) enum Postprocessor {
 impl Postprocessor {
     pub(crate) fn from_ext(ext: &str) -> Option<Self> {
         match ext {
+            "ts" => Some(Self::TypeScript),
             "py" => Some(Self::Python),
             "rs" => Some(Self::Rust),
             "go" => Some(Self::Go),
@@ -35,12 +37,13 @@ impl Postprocessor {
     pub(crate) fn should_postprocess_single_file(&self) -> bool {
         match self {
             Self::Rust => true,
-            Self::CSharp | Self::Python | Self::Go | Self::Kotlin => false,
+            Self::CSharp | Self::Python | Self::Go | Self::Kotlin | Self::TypeScript => false,
         }
     }
 
     fn postprocessing_commands(&self) -> &[(&'static str, &[&str])] {
         match self {
+            // https://github.com/astral-sh/ruff
             Self::Python => &[
                 ("ruff", &["check", "--no-respect-gitignore", "--fix"]), // First lint and remove unused imports
                 (
@@ -59,9 +62,39 @@ impl Postprocessor {
                     "2021",
                 ],
             )],
+            // https://pkg.go.dev/golang.org/x/tools/cmd/goimports
             Self::Go => &[("goimports", &["-w"]), ("gofmt", &["-w"])],
+            // https://github.com/facebook/ktfmt
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
+            // https://github.com/belav/csharpier
             Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
+            // https://github.com/biomejs/biome
+            Self::TypeScript => &[
+                (
+                    "biome",
+                    &["lint", "--only=correctness/noUnusedImports", "--write"],
+                ),
+                (
+                    "biome",
+                    &[
+                        "check",
+                        "--formatter-enabled=false",
+                        "--linter-enabled=false",
+                        "--organize-imports-enabled=true",
+                        "--write",
+                    ],
+                ),
+                (
+                    "biome",
+                    &[
+                        "format",
+                        "--trailing-commas=es5",
+                        "--indent-style=space",
+                        "--line-width=90",
+                        "--write",
+                    ],
+                ),
+            ],
         }
     }
 }

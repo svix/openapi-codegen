@@ -1,11 +1,12 @@
 // this file is @generated
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
+{% for c in referenced_components -%}
 import {
-    {% for c in referenced_components -%}
-        {{ c | to_upper_camel_case }},
-    {% endfor -%}
-} from "../openapi";
+    {{ c | to_upper_camel_case }},
+    {{ c | to_upper_camel_case }}Serializer,
+} from '../models/{{ c | to_lower_camel_case }}';
+{% endfor -%}
 import { HttpMethod, SvixRequest, SvixRequestContext } from "../request";
 
 {% for op in resource.operations -%}
@@ -67,7 +68,7 @@ export class {{ resource_type_name }} {
 
             {# query parameters -#}
             {% for p in op.query_params -%}
-                request.setQueryParam("{{ p.name }}", options?.{{ p.name | to_lower_camel_case }});
+                request.setQueryParam("{{ p.name }}", options{% if not p.required %}?{% endif %}.{{ p.name | to_lower_camel_case }});
             {% endfor -%}
 
             {# header parameters -#}
@@ -78,15 +79,16 @@ export class {{ resource_type_name }} {
             {# body parameter -#}
             {% if op.request_body_schema_name is defined -%}
                 request.setBody(
-                    {{ op.request_body_schema_name | to_lower_camel_case }},
-                    "{{ op.request_body_schema_name | to_upper_camel_case }}",
+                    {{ op.request_body_schema_name | to_upper_camel_case }}Serializer._toJsonObject(
+                        {{ op.request_body_schema_name | to_lower_camel_case }},
+                    )
                 );
             {% endif -%}
 
             {% if op.response_body_schema_name is defined %}
                 return request.send(
                     this.requestCtx,
-                    "{{ op.response_body_schema_name | to_upper_camel_case }}",
+                    {{ op.response_body_schema_name | to_upper_camel_case }}Serializer._fromJsonObject,
                 );
             {% else %}
                 return request.sendNoResponseBody(this.requestCtx);
