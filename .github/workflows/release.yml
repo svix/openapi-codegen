@@ -1,0 +1,99 @@
+name: Release
+permissions:
+  contents: "write"
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        target: ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-gnu"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install deps
+        # cargo-dist uses cargo zigbuild to build for arm/x86 (zig is required to use cargo zigbuild)
+        # I use brew because I don't think apt has a zig package, and I may as well install cargo zigbuild from brew
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install zig cargo-zigbuild
+      - name: Build ${{ matrix.target }}
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          cargo zigbuild --release --target ${{ matrix.target }}
+          ./scripts/generate_release_files.sh ${{ matrix.target }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.target }}
+          path: target/distrib/*
+
+  build-macos:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        target: ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install deps
+        # cargo-dist uses cargo zigbuild to build for arm/x86 (zig is required to use cargo zigbuild)
+        # I use brew to install zig and coreutils (sha256sum needs to be installed by coreutils), and I may as well install cargo zigbuild from brew
+        run: |
+          brew install zig cargo-zigbuild coreutils
+      - name: Build ${{ matrix.target }}
+        run: |
+          cargo zigbuild --release --target ${{ matrix.target }}
+          ./scripts/generate_release_files.sh ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.target }}
+          path: target/distrib/*
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build x86_64-pc-windows-msvc
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc
+          bash ./scripts/generate_release_files.sh x86_64-pc-windows-msvc
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-x86_64-pc-windows-msvc
+          path: target/distrib/*
+
+  publish-artifacts:
+    runs-on: ubuntu-24.04
+    needs:
+      - build-linux
+      - build-macos
+      - build-windows
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch local artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifact-*
+          path: target/distrib/
+          merge-multiple: true
+      - name: Upload files to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} target/distrib/*
+
