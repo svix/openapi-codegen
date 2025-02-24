@@ -115,6 +115,18 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             Ok(path_str)
         },
     );
+    env.add_filter(
+        "generate_java_path_str",
+        |s: Cow<'_, str>, path_params: &Vec<Value>| -> Result<String, minijinja::Error> {
+            let mut path_str = s.to_string();
+            for field in path_params {
+                let field = field.as_str().expect("Expected this to be a string");
+                path_str = path_str.replace(&format!("{{{field}}}"), "%s");
+            }
+            Ok(path_str)
+        },
+    );
+
     Ok(env)
 }
 
