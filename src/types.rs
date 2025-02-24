@@ -703,6 +703,31 @@ impl FieldType {
             }
         }
     }
+
+    fn to_java_typename(&self) -> Cow<'_, str> {
+        match self {
+            // _ => "String".into(),
+            FieldType::Bool => "Boolean".into(),
+            FieldType::Int16 => "Short".into(),
+            FieldType::UInt16 | FieldType::UInt64 | FieldType::Int64 => "Long".into(),
+            FieldType::Int32 => "Integer".into(),
+            FieldType::String => "String".into(),
+            FieldType::DateTime => "OffsetDateTime".into(),
+            FieldType::Uri => "URI".into(),
+            FieldType::JsonObject => "Object".into(),
+            FieldType::List(field_type) => {
+                format!("List<{}>", field_type.to_java_typename()).into()
+            }
+            FieldType::Set(field_type) => format!("Set<{}>", field_type.to_java_typename()).into(),
+            FieldType::Map { value_ty } => {
+                format!("Map<String,{}>", value_ty.to_java_typename()).into()
+            }
+            FieldType::SchemaRef(name) => name.clone().into(),
+            FieldType::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
+        }
+    }
 }
 
 impl minijinja::value::Object for FieldType {
@@ -740,6 +765,10 @@ impl minijinja::value::Object for FieldType {
             "to_rust" => {
                 ensure_no_args(args, "to_rust")?;
                 Ok(self.to_rust_typename().into())
+            }
+            "to_java" => {
+                ensure_no_args(args, "to_java")?;
+                Ok(self.to_java_typename().into())
             }
 
             "is_datetime" => {
