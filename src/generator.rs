@@ -19,6 +19,7 @@ use crate::{
 enum TemplateKind {
     #[default]
     ApiResource,
+    OperationOptions,
     ApiSummary,
     Type,
     TypeSummary,
@@ -44,6 +45,7 @@ pub(crate) fn generate(
 
     let tpl_kind = match tpl_base_name {
         "api_resource" => TemplateKind::ApiResource,
+        "operation_options" => TemplateKind::OperationOptions,
         "api_summary" => TemplateKind::ApiSummary,
         "component_type" => TemplateKind::Type,
         "component_type_summary" => TemplateKind::TypeSummary,
@@ -74,6 +76,7 @@ pub(crate) fn generate(
     };
 
     match tpl_kind {
+        TemplateKind::OperationOptions => generator.generate_api_resources_options(api)?,
         TemplateKind::ApiResource => generator.generate_api_resources(api)?,
         TemplateKind::ApiSummary => generator.generate_api_summary(api)?,
         TemplateKind::Type => generator.generate_types(types)?,
@@ -96,6 +99,31 @@ struct Generator<'a> {
 }
 
 impl Generator<'_> {
+    fn generate_api_resources_options(self, api: Api) -> anyhow::Result<()> {
+        self.generate_api_resources_options_inner(api.resources.values())
+    }
+
+    fn generate_api_resources_options_inner<'a>(
+        &self,
+        resources: impl Iterator<Item = &'a Resource>,
+    ) -> anyhow::Result<()> {
+        for resource in resources {
+            let referenced_components = resource.referenced_components();
+            for operation in &resource.operations {
+                if operation.has_query_or_header_params() {
+                    self.render_tpl(
+                        Some(&format!("{}_{}_Options", resource.name, operation.name)),
+                        context! { operation, resource, referenced_components },
+                    )?;
+                }
+            }
+
+            self.generate_api_resources_options_inner(resource.subresources.values())?;
+        }
+
+        Ok(())
+    }
+
     fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
         self.generate_api_resources_inner(api.resources.values())
     }
