@@ -93,7 +93,7 @@ fn get_or_insert_resource(
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct Resource {
     pub name: String,
-    operations: Vec<Operation>,
+    pub operations: Vec<Operation>,
     pub subresources: BTreeMap<String, Resource>,
     #[debug(skip)] // redundant, but convenient in templates
     has_post_operation: bool,
@@ -140,11 +140,11 @@ impl Resource {
 
 /// A named HTTP endpoint.
 #[derive(Debug, serde::Serialize)]
-struct Operation {
+pub(crate) struct Operation {
     /// The operation ID from the spec.
     id: String,
     /// The name to use for the operation in code.
-    name: String,
+    pub(crate) name: String,
     /// Description of the operation to use for documentation.
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -420,6 +420,10 @@ impl Operation {
             response_body_schema_name,
         };
         Some((res_path, op))
+    }
+
+    pub(crate) fn has_query_or_header_params(&self) -> bool {
+        !self.header_params.is_empty() || !self.query_params.is_empty()
     }
 }
 
