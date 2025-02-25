@@ -47,7 +47,7 @@ enum Command {
 }
 
 // Boolean flags for generate command, separate struct to simplify passing them around.
-#[derive(Clone, clap::Args)]
+#[derive(Clone, Copy, clap::Args)]
 struct GenerateFlags {
     /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
     #[clap(long)]
@@ -60,6 +60,10 @@ struct GenerateFlags {
     /// Write api.ron and types.ron files, as a debugging aid.
     #[clap(long)]
     debug: bool,
+
+    /// Write `.codegen.json` file
+    #[clap(long)]
+    write_codegen_metadata: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -81,7 +85,9 @@ fn main() -> anyhow::Result<()> {
     match &output_dir {
         Some(path) => {
             analyze_and_generate(spec, template.into(), path, flags)?;
-            write_codegen_metadata(input_sha256sum, path)?;
+            if flags.write_codegen_metadata {
+                write_codegen_metadata(input_sha256sum, path)?;
+            }
         }
         None => {
             let output_dir_root = PathBuf::from("out");
@@ -104,7 +110,9 @@ fn main() -> anyhow::Result<()> {
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
             analyze_and_generate(spec, template.into(), path, flags)?;
-            write_codegen_metadata(input_sha256sum, path)?;
+            if flags.write_codegen_metadata {
+                write_codegen_metadata(input_sha256sum, path)?;
+            }
             // Persist the TempDir if everything was successful
             _ = output_dir.into_path();
         }
