@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
-use derive_more::Debug;
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 use serde::Serialize;
@@ -44,9 +43,6 @@ impl Api {
                     Operation::from_openapi(&path, method, op, component_schemas, include_hidden)
                 {
                     let resource = get_or_insert_resource(&mut resources, res_path);
-                    if op.method == "post" {
-                        resource.has_post_operation = true;
-                    }
                     resource.operations.push(op);
                 }
             }
@@ -95,8 +91,6 @@ pub(crate) struct Resource {
     pub name: String,
     pub operations: Vec<Operation>,
     pub subresources: BTreeMap<String, Resource>,
-    #[debug(skip)] // redundant, but convenient in templates
-    has_post_operation: bool,
 }
 
 impl Resource {
@@ -105,7 +99,6 @@ impl Resource {
             name,
             operations: Vec::new(),
             subresources: BTreeMap::new(),
-            has_post_operation: false,
         }
     }
 
