@@ -41,14 +41,14 @@ impl Types {
             };
 
             match Type::from_schema(schema_name.to_owned(), obj) {
-                Ok(tys) => {
+                Ok(ty) => {
                     extra_components.extend(
-                        tys.iter()
-                            .flat_map(|ty| ty.referenced_components())
+                        ty.referenced_components()
+                            .into_iter()
                             .filter(|&c| c != schema_name && !types.contains_key(c))
                             .map(ToOwned::to_owned),
                     );
-                    types.extend(tys.into_iter().map(|ty| (ty.name.clone(), ty)));
+                    types.insert(schema_name.to_owned(), ty);
                 }
                 Err(e) => {
                     tracing::warn!(schema_name, "unsupported schema: {e:#}");
@@ -76,18 +76,14 @@ pub(crate) struct Type {
 }
 
 impl Type {
-    pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Vec<Self>> {
-        let mut result = Vec::new();
+    pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Self> {
         let data = match s.instance_type {
             Some(SingleOrVec::Single(it)) => match *it {
                 InstanceType::Object => {
                     let obj = s
                         .object
                         .context("unsupported: object type without further validation")?;
-                    let (data, aux_ty) = TypeData::from_object_schema(&name, *obj, s.subschemas)?;
-                    result.extend(aux_ty);
-
-                    data
+                    TypeData::from_object_schema(*obj, s.subschemas)?
                 }
                 InstanceType::Integer => {
                     let enum_varnames = s
@@ -122,30 +118,33 @@ impl Type {
 
         let metadata = s.metadata.unwrap_or_default();
 
-        result.push(Self {
+        Ok(Self {
             name,
             description: metadata.description,
             deprecated: metadata.deprecated,
             data,
-        });
-        Ok(result)
+        })
     }
 
     pub(crate) fn referenced_components(&self) -> BTreeSet<&str> {
         match &self.data {
-            TypeData::Struct { fields } => fields
-                .iter()
-                .filter_map(|f| f.r#type.referenced_schema())
-                .collect(),
+            TypeData::Struct { fields } => fields_referenced_schemas(fields),
             TypeData::StringEnum { .. } => BTreeSet::new(),
             TypeData::IntegerEnum { .. } => BTreeSet::new(),
-            TypeData::StructEnum { variants, .. } => variants
-                .iter()
-                .flat_map(|v| &v.fields)
-                .filter_map(|f| f.r#type.referenced_schema())
-                .collect(),
+            TypeData::StructEnum { repr, fields, .. } => {
+                let mut res = repr.referenced_components();
+                res.append(&mut fields_referenced_schemas(fields));
+                res
+            }
         }
     }
+}
+
+fn fields_referenced_schemas(fields: &[Field]) -> BTreeSet<&str> {
+    fields
+        .iter()
+        .filter_map(|f| f.r#type.referenced_schema())
+        .collect()
 }
 
 #[derive(Debug, Serialize)]
@@ -162,17 +161,21 @@ pub(crate) enum TypeData {
     },
     StructEnum {
         /// Name of the field that identifies the variant.
-        discriminator: String,
-        variants: Vec<Variant>,
+        discriminator_field: String,
+
+        /// JSON representation of the enum variants.
+        repr: StructEnumRepr,
+
+        /// Variant-independent fields.
+        fields: Vec<Field>,
     },
 }
 
 impl TypeData {
     fn from_object_schema(
-        name: &str,
         obj: ObjectValidation,
         subschemas: Option<Box<SubschemaValidation>>,
-    ) -> anyhow::Result<(Self, Option<Type>)> {
+    ) -> anyhow::Result<Self> {
         ensure!(
             obj.additional_properties.is_none(),
             "additionalProperties not yet supported"
@@ -185,7 +188,7 @@ impl TypeData {
         );
         ensure!(obj.property_names.is_none(), "unsupported: propertyNames");
 
-        let mut fields: Vec<_> = obj
+        let fields: Vec<_> = obj
             .properties
             .into_iter()
             .map(|(name, schema)| {
@@ -194,7 +197,6 @@ impl TypeData {
             })
             .collect::<anyhow::Result<_>>()?;
 
-        let mut aux_ty = None;
         if let Some(sub) = subschemas {
             ensure!(sub.all_of.is_none(), "unsupported: allOf subschema");
             ensure!(sub.any_of.is_none(), "unsupported: anyOf subschema");
@@ -204,38 +206,11 @@ impl TypeData {
             ensure!(sub.else_schema.is_none(), "unsupported: else subschema");
 
             if let Some(one_of) = sub.one_of {
-                let (discriminator, variants) = Self::struct_enum(one_of)?;
-                let enum_data = Self::StructEnum {
-                    discriminator: discriminator.clone(),
-                    variants,
-                };
-
-                if fields.is_empty() {
-                    return Ok((enum_data, None));
-                } else {
-                    let enum_name = format!("{name}_{discriminator}");
-
-                    aux_ty = Some(Type {
-                        name: enum_name.clone(),
-                        description: None,
-                        deprecated: false,
-                        data: enum_data,
-                    });
-
-                    fields.push(Field {
-                        name: discriminator,
-                        r#type: FieldType::SchemaRef(enum_name),
-                        default: None,
-                        description: None,
-                        required: true,
-                        nullable: false,
-                        deprecated: false,
-                    });
-                }
+                return Self::struct_enum(one_of, fields);
             }
         }
 
-        Ok((Self::Struct { fields }, aux_ty))
+        Ok(Self::Struct { fields })
     }
 
     fn from_string_enum(values: Vec<serde_json::Value>) -> anyhow::Result<TypeData> {
@@ -281,8 +256,9 @@ impl TypeData {
         })
     }
 
-    fn struct_enum(one_of: Vec<Schema>) -> anyhow::Result<(String, Vec<Variant>)> {
-        let mut discriminator = None;
+    fn struct_enum(one_of: Vec<Schema>, fields: Vec<Field>) -> anyhow::Result<Self> {
+        let mut discriminator_field = None;
+        let mut content_field = None;
 
         let variants = one_of
             .into_iter()
@@ -299,13 +275,7 @@ impl TypeData {
                                 .context("unsupported: object type without further validation")?;
                             ensure!(s.subschemas.is_none(), "unsupported: nested subschemas");
 
-                            let (data, aux_ty) = TypeData::from_object_schema("", *obj, None)?;
-                            ensure!(
-                                aux_ty.is_none(),
-                                "unsupported: subschema that defines an auxiliary type"
-                            );
-
-                            data
+                            TypeData::from_object_schema(*obj, None)?
                         }
                         _ => bail!("unsupported type in subschema: {it:?}"),
                     },
@@ -329,14 +299,14 @@ impl TypeData {
                             return false;
                         }
 
-                        if let Some(d) = &discriminator {
+                        if let Some(d) = &discriminator_field {
                             if *d != f.name {
                                 // would be nice to be able to bail, but can't from retain_mut
                                 tracing::error!("found two different consts between enum variants");
                                 return false;
                             }
                         } else {
-                            discriminator = Some(f.name.clone());
+                            discriminator_field = Some(f.name.clone());
                         }
 
                         name = Some(value.clone());
@@ -344,14 +314,78 @@ impl TypeData {
                     }
                     _ => true,
                 });
-
                 let name = name.context("failed to find discriminator value")?;
-                Ok(Variant { name, fields })
+
+                if fields.len() > 1 {
+                    bail!("unsupported: oneOf enum variants with more than two fields");
+                }
+
+                let schema_ref = fields
+                    .pop()
+                    .map(|f| {
+                        if let Some(c) = &content_field {
+                            if *c != f.name {
+                                bail!("found two different content fields between enum variants");
+                            }
+                        } else {
+                            content_field = Some(f.name.clone());
+                        }
+
+                        ensure!(f.default.is_none());
+                        ensure!(!f.deprecated);
+                        ensure!(!f.nullable);
+                        ensure!(f.required);
+
+                        match f.r#type {
+                            FieldType::SchemaRef(r) => Ok(r),
+                            _ => bail!("unsupported: non-$ref variant content"),
+                        }
+                    })
+                    .transpose()?;
+
+                Ok(SimpleVariant { name, schema_ref })
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let discriminator = discriminator.context("failed to detect enum discriminator")?;
-        Ok((discriminator, variants))
+        let discriminator_field =
+            discriminator_field.context("failed to detect enum discriminator field")?;
+        let content_field = content_field.context("failed to detect enum content field")?;
+
+        Ok(Self::StructEnum {
+            discriminator_field,
+            repr: StructEnumRepr::AdjacentlyTagged {
+                content_field,
+                variants,
+            },
+            fields,
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) enum StructEnumRepr {
+    /// <https://serde.rs/enum-representations.html#adjacently-tagged>
+    AdjacentlyTagged {
+        /// Name of the field that contains the variant-specific fields.
+        content_field: String,
+
+        /// Enum variants.
+        ///
+        /// Every variant has a discriminator value that's stored in the discriminator field to
+        /// identify the variant.
+        variants: Vec<SimpleVariant>,
+    },
+    // add more variants here to support other enum representations
+}
+
+impl StructEnumRepr {
+    fn referenced_components(&self) -> BTreeSet<&str> {
+        match self {
+            StructEnumRepr::AdjacentlyTagged { variants, .. } => variants
+                .iter()
+                .filter_map(|v| v.schema_ref.as_deref())
+                .collect(),
+        }
     }
 }
 
@@ -395,10 +429,13 @@ impl Field {
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct Variant {
+pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     name: String,
-    fields: Vec<Field>,
+    /// The name of the schema that defines the variant schema.
+    ///
+    /// If this is `None`, there may not be a field with variant-specific data.
+    schema_ref: Option<String>,
 }
 
 /// Supported field type.
@@ -427,6 +464,7 @@ pub(crate) enum FieldType {
     Map {
         value_ty: Arc<FieldType>,
     },
+    /// The name of another schema that defines this type.
     SchemaRef(String),
 
     /// A string constant, used as an enum discriminator value.
