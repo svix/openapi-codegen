@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
-use derive_more::Debug;
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 use serde::Serialize;
