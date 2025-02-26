@@ -164,6 +164,7 @@ pub(crate) enum TypeData {
         discriminator_field: String,
 
         /// JSON representation of the enum variants.
+        #[serde(flatten)]
         repr: StructEnumRepr,
 
         /// Variant-independent fields.
@@ -363,6 +364,7 @@ impl TypeData {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(tag = "repr", rename_all = "snake_case")]
 pub(crate) enum StructEnumRepr {
     /// <https://serde.rs/enum-representations.html#adjacently-tagged>
     AdjacentlyTagged {
@@ -432,9 +434,11 @@ impl Field {
 pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     name: String,
+
     /// The name of the schema that defines the variant schema.
     ///
     /// If this is `None`, there may not be a field with variant-specific data.
+    #[serde(skip_serializing_if = "Option::is_none")]
     schema_ref: Option<String>,
 }
 
