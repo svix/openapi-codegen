@@ -1,8 +1,8 @@
-use std::{fs, io::BufWriter};
+use std::io::BufWriter;
 
 use anyhow::{bail, Context as _};
 use camino::Utf8Path;
-use fs_err::File;
+use fs_err::{self as fs, File};
 use heck::{ToLowerCamelCase, ToSnakeCase as _, ToUpperCamelCase as _};
 use minijinja::{context, Template};
 use serde::Deserialize;
