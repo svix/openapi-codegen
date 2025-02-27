@@ -770,6 +770,16 @@ impl FieldType {
             }
         }
     }
+
+    fn to_ruby_typename(&self) -> Cow<'_, str> {
+        match self {
+            FieldType::SchemaRef(name) => name.clone().into(),
+            FieldType::StringConst(_) => {
+                unreachable!("FieldType::const should never be exposed to template code")
+            }
+            _ => panic!("types? in ruby?!?!, not on my watch!"),
+        }
+    }
 }
 
 impl minijinja::value::Object for FieldType {
@@ -811,6 +821,10 @@ impl minijinja::value::Object for FieldType {
             "to_java" => {
                 ensure_no_args(args, "to_java")?;
                 Ok(self.to_java_typename().into())
+            }
+            "to_ruby" => {
+                ensure_no_args(args, "to_ruby")?;
+                Ok(self.to_ruby_typename().into())
             }
 
             "is_datetime" => {

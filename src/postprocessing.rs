@@ -25,6 +25,7 @@ impl Postprocessor {
             "cs" => PostprocessorLanguage::CSharp,
             "java" => PostprocessorLanguage::Java,
             "ts" => PostprocessorLanguage::TypeScript,
+            "rb" => PostprocessorLanguage::Ruby,
             _ => {
                 tracing::warn!("no known postprocessing command(s) for {ext} files");
                 PostprocessorLanguage::Unknown
@@ -43,7 +44,8 @@ impl Postprocessor {
                 }
             }
             // pass output dir to postprocessor
-            PostprocessorLanguage::Python
+            PostprocessorLanguage::Ruby
+            | PostprocessorLanguage::Python
             | PostprocessorLanguage::Go
             | PostprocessorLanguage::Kotlin
             | PostprocessorLanguage::CSharp
@@ -70,6 +72,7 @@ pub(crate) enum PostprocessorLanguage {
     CSharp,
     Java,
     TypeScript,
+    Ruby,
     Unknown,
 }
 
@@ -131,6 +134,8 @@ impl PostprocessorLanguage {
                     ],
                 ),
             ],
+            // https://github.com/fables-tales/rubyfmt
+            Self::Ruby => &[("rubyfmt", &["-i", "--include-gitignored", "--fail-fast"])],
         }
     }
 }
