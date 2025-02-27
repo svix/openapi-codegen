@@ -20,9 +20,8 @@ enum TemplateKind {
     #[default]
     ApiResource,
     OperationOptions,
-    ApiSummary,
     Type,
-    TypeSummary,
+    Summary,
 }
 
 pub(crate) fn generate(
@@ -46,12 +45,11 @@ pub(crate) fn generate(
     let tpl_kind = match tpl_base_name {
         "api_resource" => TemplateKind::ApiResource,
         "operation_options" => TemplateKind::OperationOptions,
-        "api_summary" => TemplateKind::ApiSummary,
+        "api_summary" | "component_type_summary" | "summary" => TemplateKind::Summary,
         "component_type" => TemplateKind::Type,
-        "component_type_summary" => TemplateKind::TypeSummary,
         _ => bail!(
             "template file basename must be one of 'api_resource', 'api_summary', \
-             'component_type', 'component_type_summary'",
+             'component_type', 'component_type_summary', 'summary'",
         ),
     };
 
@@ -78,9 +76,8 @@ pub(crate) fn generate(
     match tpl_kind {
         TemplateKind::OperationOptions => generator.generate_api_resources_options(api)?,
         TemplateKind::ApiResource => generator.generate_api_resources(api)?,
-        TemplateKind::ApiSummary => generator.generate_api_summary(api)?,
         TemplateKind::Type => generator.generate_types(types)?,
-        TemplateKind::TypeSummary => generator.generate_type_summary(types)?,
+        TemplateKind::Summary => generator.generate_summary(types, api)?,
     }
 
     if !no_postprocess {
@@ -155,12 +152,8 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_api_summary(&self, api: Api) -> anyhow::Result<()> {
-        self.render_tpl(None, context! { api })
-    }
-
-    fn generate_type_summary(&self, Types(types): Types) -> anyhow::Result<()> {
-        self.render_tpl(None, context! { types })
+    fn generate_summary(&self, Types(types): Types, api: Api) -> anyhow::Result<()> {
+        self.render_tpl(None, context! { types, api })
     }
 
     fn render_tpl(&self, output_name: Option<&str>, ctx: minijinja::Value) -> anyhow::Result<()> {
