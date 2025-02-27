@@ -167,6 +167,7 @@ impl Generator<'_> {
             (None, "cs" | "java" | "kt") => "Summary".to_owned(),
             (None, "ts") => "index".to_owned(),
             (None, "go") => "models".to_owned(),
+            (None, "rb") => "svix".to_owned(),
             (None, _) => "summary".to_owned(),
         };
 
