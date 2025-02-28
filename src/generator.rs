@@ -12,6 +12,7 @@ use crate::{
     postprocessing::Postprocessor,
     template,
     types::Types,
+    GenerateFlags,
 };
 
 #[derive(Default, Deserialize)]
@@ -29,7 +30,7 @@ pub(crate) fn generate(
     types: Types,
     tpl_name: String,
     output_dir: &Utf8Path,
-    no_postprocess: bool,
+    flags: GenerateFlags,
 ) -> anyhow::Result<()> {
     let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (basename, &tpl_name),
@@ -70,7 +71,7 @@ pub(crate) fn generate(
         tpl_file_ext,
         output_dir,
         postprocessor: &postprocessor,
-        no_postprocess,
+        flags,
     };
 
     match tpl_kind {
@@ -80,7 +81,7 @@ pub(crate) fn generate(
         TemplateKind::Summary => generator.generate_summary(types, api)?,
     }
 
-    if !no_postprocess {
+    if !flags.no_postprocess {
         postprocessor.run_postprocessor();
     }
 
@@ -92,7 +93,7 @@ struct Generator<'a> {
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
     postprocessor: &'a Postprocessor,
-    no_postprocess: bool,
+    flags: GenerateFlags,
 }
 
 impl Generator<'_> {
@@ -172,11 +173,15 @@ impl Generator<'_> {
         };
 
         let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
+
+        if self.flags.create_file_parents && !self.output_dir.exists() {
+            fs::create_dir_all(self.output_dir)?;
+        }
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         self.tpl.render_to_write(ctx, out_file)?;
 
-        if !self.no_postprocess {
+        if !self.flags.no_postprocess {
             self.postprocessor.add_path(&file_path);
         }
 
