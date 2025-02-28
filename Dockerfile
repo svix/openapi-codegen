@@ -1,5 +1,5 @@
 # build openapi-codegen
-FROM lukemathwalker/cargo-chef:latest-rust-1.85 AS chef
+FROM docker.io/lukemathwalker/cargo-chef:latest-rust-1.85 AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -25,11 +25,11 @@ COPY src /app/src
 RUN cargo build --release --bin openapi-codegen
 
 # build goimports
-FROM golang:1.24-bookworm AS goimports-builder
+FROM docker.io/golang:1.24-bookworm AS goimports-builder
 RUN go install golang.org/x/tools/cmd/goimports@latest
 
 # build rubyfmt
-FROM rust:1.85 AS rubyfmt-builder
+FROM docker.io/rust:1.85 AS rubyfmt-builder
 WORKDIR /app
 
 RUN apt-get update && \
@@ -43,7 +43,7 @@ RUN git clone https://github.com/fables-tales/rubyfmt.git \
 RUN cargo build --release
 
 # main container
-FROM ubuntu:noble
+FROM docker.io/ubuntu:noble
 
 ENV DEBIAN_FRONTEND=noninteractive
 
