@@ -12,6 +12,7 @@ use crate::{
     postprocessing::Postprocessor,
     template,
     types::Types,
+    PostprocessorOptions,
 };
 
 #[derive(Default, Deserialize)]
@@ -24,12 +25,12 @@ enum TemplateKind {
     Summary,
 }
 
-pub(crate) fn generate(
+pub(crate) async fn generate(
     api: Api,
     types: Types,
     tpl_name: String,
     output_dir: &Utf8Path,
-    no_postprocess: bool,
+    postprocessor_options: PostprocessorOptions,
 ) -> anyhow::Result<()> {
     let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (basename, &tpl_name),
@@ -63,14 +64,14 @@ pub(crate) fn generate(
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;
 
-    let postprocessor = Postprocessor::from_ext(tpl_file_ext, output_dir);
+    let postprocessor = Postprocessor::from_ext(tpl_file_ext, output_dir, &postprocessor_options);
 
     let generator = Generator {
         tpl,
         tpl_file_ext,
         output_dir,
         postprocessor: &postprocessor,
-        no_postprocess,
+        no_postprocess: postprocessor_options.no_postprocess,
     };
 
     match tpl_kind {
@@ -80,8 +81,8 @@ pub(crate) fn generate(
         TemplateKind::Summary => generator.generate_summary(types, api)?,
     }
 
-    if !no_postprocess {
-        postprocessor.run_postprocessor();
+    if !postprocessor_options.no_postprocess {
+        postprocessor.run_postprocessor().await?;
     }
 
     Ok(())

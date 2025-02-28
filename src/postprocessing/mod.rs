@@ -1,22 +1,49 @@
-use std::{cell::RefCell, collections::BTreeSet, io, process::Command, sync::Mutex};
+mod cli;
+mod docker;
 
 use camino::{Utf8Path, Utf8PathBuf};
+use std::cell::RefCell;
+
+use crate::PostprocessorOptions;
+
+#[derive(Debug, Clone)]
+pub(crate) enum CommandRunner {
+    Cli,
+    Docker,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Postprocessor {
     files_to_process: RefCell<Vec<Utf8PathBuf>>,
     postprocessor_lang: PostprocessorLanguage,
     output_dir: Utf8PathBuf,
+    runner: CommandRunner,
 }
 impl Postprocessor {
-    fn new(postprocessor_lang: PostprocessorLanguage, output_dir: Utf8PathBuf) -> Self {
+    fn new(
+        postprocessor_lang: PostprocessorLanguage,
+        output_dir: Utf8PathBuf,
+        postprocessor_options: &PostprocessorOptions,
+    ) -> Self {
+        let runner = {
+            if postprocessor_options.use_docker_backend {
+                CommandRunner::Docker
+            } else {
+                CommandRunner::Cli
+            }
+        };
         Self {
             files_to_process: RefCell::new(Vec::new()),
             postprocessor_lang,
             output_dir,
+            runner,
         }
     }
-    pub(crate) fn from_ext(ext: &str, output_dir: &Utf8Path) -> Self {
+    pub(crate) fn from_ext(
+        ext: &str,
+        output_dir: &Utf8Path,
+        postprocessor_options: &PostprocessorOptions,
+    ) -> Self {
         let lang = match ext {
             "py" => PostprocessorLanguage::Python,
             "rs" => PostprocessorLanguage::Rust,
@@ -25,42 +52,64 @@ impl Postprocessor {
             "cs" => PostprocessorLanguage::CSharp,
             "java" => PostprocessorLanguage::Java,
             "ts" => PostprocessorLanguage::TypeScript,
+            "rb" => PostprocessorLanguage::Ruby,
             _ => {
                 tracing::warn!("no known postprocessing command(s) for {ext} files");
                 PostprocessorLanguage::Unknown
             }
         };
-        Self::new(lang, output_dir.to_path_buf())
+        Self::new(lang, output_dir.to_path_buf(), postprocessor_options)
     }
 
-    pub(crate) fn run_postprocessor(&self) {
+    pub(crate) async fn run_postprocessor(&self) -> anyhow::Result<()> {
         match self.postprocessor_lang {
             // pass each file to postprocessor at once
             PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &self.files_to_process.borrow());
+                    let paths = { self.files_to_process.borrow().clone() };
+                    self.execute_command(command, args, &paths).await?;
                 }
             }
             // pass output dir to postprocessor
-            PostprocessorLanguage::Python
+            PostprocessorLanguage::Ruby
+            | PostprocessorLanguage::Python
             | PostprocessorLanguage::Go
             | PostprocessorLanguage::Kotlin
             | PostprocessorLanguage::CSharp
             | PostprocessorLanguage::TypeScript => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &vec![self.output_dir.clone()]);
+                    self.execute_command(command, args, &vec![self.output_dir.clone()])
+                        .await?;
                 }
             }
             PostprocessorLanguage::Unknown => (),
         }
+        Ok(())
     }
+
+    async fn execute_command(
+        &self,
+        command: &'static str,
+        args: &[&str],
+        paths: &Vec<Utf8PathBuf>,
+    ) -> anyhow::Result<()> {
+        match self.runner {
+            CommandRunner::Cli => cli::execute_command(command, args, paths),
+            CommandRunner::Docker => {
+                docker::execute_command(command, args, paths, &self.output_dir).await?
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn add_path(&self, path: &Utf8Path) {
         let mut v = self.files_to_process.borrow_mut();
         v.push(path.to_path_buf());
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PostprocessorLanguage {
     Python,
@@ -70,6 +119,7 @@ pub(crate) enum PostprocessorLanguage {
     CSharp,
     Java,
     TypeScript,
+    Ruby,
     Unknown,
 }
 
@@ -131,29 +181,8 @@ impl PostprocessorLanguage {
                     ],
                 ),
             ],
-        }
-    }
-}
-
-fn execute_command(command: &'static str, args: &[&str], paths: &Vec<Utf8PathBuf>) {
-    let result = Command::new(command).args(args).args(paths).status();
-    match result {
-        Ok(exit_status) if exit_status.success() => {}
-        Ok(exit_status) => {
-            tracing::warn!(exit_status = exit_status.code(), "`{command}` failed");
-        }
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            // only print one error per command that's not found
-            static NOT_FOUND_LOGGED_FOR: Mutex<BTreeSet<&str>> = Mutex::new(BTreeSet::new());
-            if NOT_FOUND_LOGGED_FOR.lock().unwrap().insert(command) {
-                tracing::warn!("`{command}` not found");
-            }
-        }
-        Err(e) => {
-            tracing::warn!(
-                error = &e as &dyn std::error::Error,
-                "running `{command}` failed"
-            );
+            // https://github.com/fables-tales/rubyfmt
+            Self::Ruby => &[("rubyfmt", &["-i", "--include-gitignored", "--fail-fast"])],
         }
     }
 }
