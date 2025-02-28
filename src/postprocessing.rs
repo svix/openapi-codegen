@@ -92,7 +92,7 @@ impl PostprocessorLanguage {
             Self::Rust => &[(
                 "rustfmt",
                 &[
-                    "+nightly",
+                    "+nightly-2025-02-27",
                     "--unstable-features",
                     "--skip-children",
                     "--edition",

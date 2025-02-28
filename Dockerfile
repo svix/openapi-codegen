@@ -57,7 +57,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
     --profile minimal \
     --no-modify-path \
     --no-update-default-toolchain \
-    --default-toolchain nightly \
+    --default-toolchain nightly-2025-02-27 \
     --component rustfmt
 
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin/"
@@ -95,3 +95,4 @@ COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin
 
 # Ruby
 COPY --from=rubyfmt-builder /app/target/release/rubyfmt-main /usr/bin/rubyfmt
+
