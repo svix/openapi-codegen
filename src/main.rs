@@ -64,6 +64,10 @@ struct GenerateFlags {
     /// Write `.codegen.json` file
     #[clap(long)]
     write_codegen_metadata: bool,
+
+    /// When generating a file the parent directories are crated if they don't exist
+    #[clap(long)]
+    create_file_parents: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -141,7 +145,7 @@ fn analyze_and_generate(
             writeln!(types_file, "{types:#?}")?;
         }
 
-        generate(api, types, template, path, flags.no_postprocess)?;
+        generate(api, types, template, path, flags)?;
     }
 
     println!("done! output written to {path}");
