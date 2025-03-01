@@ -13,7 +13,11 @@ jobs:
   build:
     strategy:
       matrix:
-        platform: [ {runner: ubuntu-24.04, name: amd64 }, {runner: ubuntu-24.04-arm, name: arm64 } ]
+        platform:
+          - runner: ubuntu-24.04
+            name: amd64
+          - runner: ubuntu-24.04-arm
+            name: arm64
     name: Build and publish ${{ matrix.platform.name }} docker image
     if: github.ref == 'refs/heads/main'
     runs-on: "${{ matrix.platform.runner }}"
