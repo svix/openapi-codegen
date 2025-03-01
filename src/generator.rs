@@ -174,7 +174,7 @@ impl Generator<'_> {
 
         let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
 
-        if self.flags.create_file_parents && !self.output_dir.exists() {
+        if !self.output_dir.exists() {
             fs::create_dir_all(self.output_dir)?;
         }
         let out_file = BufWriter::new(File::create(&file_path)?);
