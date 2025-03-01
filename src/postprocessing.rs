@@ -37,7 +37,9 @@ impl Postprocessor {
     pub(crate) fn run_postprocessor(&self) {
         match self.postprocessor_lang {
             // pass each file to postprocessor at once
-            PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
+            PostprocessorLanguage::Go
+            | PostprocessorLanguage::Java
+            | PostprocessorLanguage::Rust => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
                     execute_command(command, args, &self.files_to_process.borrow());
@@ -46,7 +48,6 @@ impl Postprocessor {
             // pass output dir to postprocessor
             PostprocessorLanguage::Ruby
             | PostprocessorLanguage::Python
-            | PostprocessorLanguage::Go
             | PostprocessorLanguage::Kotlin
             | PostprocessorLanguage::CSharp
             | PostprocessorLanguage::TypeScript => {
