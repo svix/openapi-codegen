@@ -46,12 +46,17 @@ RUN cargo build --release
 FROM docker.io/ubuntu:noble
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin/:/root/.dotnet/tools"
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl default-jre-headless && \
+    apt-get install -y --no-install-recommends curl default-jre-headless dotnet8 && \
     apt-get clean
 
-# Rust
+
+# C#
+RUN dotnet tool install csharpier --version 0.30.6 -g
+
+# # Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
     -y \
     --profile minimal \
@@ -60,7 +65,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
     --default-toolchain nightly-2025-02-27 \
     --component rustfmt
 
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin/"
 
 # Javascript
 COPY --from=ghcr.io/biomejs/biome:1.9.4 /usr/local/bin/biome /usr/bin/biome
