@@ -1,5 +1,4 @@
 name: Build and push docker image
-
 on:
   workflow_dispatch:
   push:
@@ -11,6 +10,9 @@ env:
 
 jobs:
   build:
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
         platform:
@@ -62,6 +64,9 @@ jobs:
           retention-days: 1
 
   publish-merged-manifest:
+    permissions:
+      contents: read
+      packages: write
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     needs:
