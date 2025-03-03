@@ -64,6 +64,8 @@ pub(crate) fn generate(
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;
 
+    fs::create_dir_all(output_dir)?;
+
     let postprocessor = Postprocessor::from_ext(tpl_file_ext, output_dir);
 
     let generator = Generator {
@@ -174,9 +176,6 @@ impl Generator<'_> {
 
         let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
 
-        if !self.output_dir.exists() {
-            fs::create_dir_all(self.output_dir)?;
-        }
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         self.tpl.render_to_write(ctx, out_file)?;
