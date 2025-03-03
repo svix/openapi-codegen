@@ -1,3 +1,13 @@
+{#
+    This example template is a simplified version of the one we use in
+    https://github.com/svix/svix-webhooks
+
+    It currently depends on the (non-generated) `crate::error::Result`,
+    `crate::Configuration` and `crate::request::Request`
+
+    A PR to make it more generic (e.g. use reqwest directly) would be welcome
+-#}
+// this file is @generated
 {% set resource_type_name = resource.name | to_upper_camel_case -%}
 
 use crate::{
@@ -8,25 +18,12 @@ use crate::{
 
 {% for op in resource.operations -%}
     {% if op | has_query_or_header_params %}
-    {% if not op | has_required_query_or_header_params -%}
-        #[derive(Default)]
-    {% endif -%}
     pub struct {{ resource_type_name }}{{ op.name | to_upper_camel_case }}Options {
         {% for p in op.query_params -%}
-            {% if p.type.is_datetime() -%}
-                {% set ty = "String" -%}
-            {% else -%}
-                {% set ty = p.type.to_rust() -%}
-            {% endif -%}
+            {% set ty = p.type.to_rust() -%}
             {% if not p.required %}{% set ty %}Option<{{ ty }}>{% endset %}{% endif %}
             {% if p.description is defined -%}
                 {{ p.description | to_doc_comment(style="rust") }}
-                {# we currently use String for date-time params, for backwards compat -#}
-                {# document the format so it's not _that_ awkward -#}
-                {% if p.type.is_datetime() -%}
-                ///
-                /// RFC3339 date string.
-                {% endif -%}
             {% endif -%}
             pub {{ p.name | to_snake_case }}: {{ ty }},
         {% endfor -%}
@@ -95,11 +92,6 @@ impl<'a> {{ resource_type_name }}<'a> {
             ;
         {% endif -%}
 
-        {% if has_header_params -%}
-            {# unpack PostOptions -#}
-            let PostOptions { idempotency_key } = options.unwrap_or_default();
-        {% endif -%}
-
         {# make the request #}
         crate::request::Request::new(http1::Method::{{ op.method | upper }}, "{{ op.path }}")
 
@@ -131,15 +123,4 @@ impl<'a> {{ resource_type_name }}<'a> {
             .execute(self.cfg)
             .await
     }
-
-    {% set extra_path -%}
-        api_extra/{{ resource.name | to_snake_case }}_{{ op.name | to_snake_case }}.rs
-    {%- endset -%}
-    {% include extra_path ignore missing %}
-    {% endfor %}
 }
-
-{% set extra_path -%}
-    api_extra/{{ resource.name | to_snake_case }}.rs
-{%- endset -%}
-{% include extra_path ignore missing %}
