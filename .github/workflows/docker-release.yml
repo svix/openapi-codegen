@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           tags: ${{ env.REGISTRY_IMAGE }}
-          file: Dockerfile.${{ matrix.platform.name }}
+          file: Dockerfile
           cache-from: type=gha
           cache-to: type=gha
           platforms: linux/${{ matrix.platform.name }}
