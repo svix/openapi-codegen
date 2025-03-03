@@ -2,6 +2,7 @@
 name = "openapi-codegen"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 aide = "0.14.1"
