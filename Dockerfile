@@ -46,7 +46,7 @@ RUN cargo build --release
 FROM docker.io/ubuntu:noble
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin/:/root/.dotnet/tools"
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin/:/root/.dotnet/tools:/usr/local/go/bin"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl default-jre-headless dotnet8 && \
@@ -92,7 +92,7 @@ RUN echo "5e7eb28a0b2006d1cefbc9213bfc73a8191ec2f85d639ec4fc4ec0cd04212e82 ktfmt
 
 # Go
 COPY --from=goimports-builder /go/bin/goimports /usr/bin
-COPY --from=goimports-builder /usr/local/go/bin/gofmt /usr/bin
+COPY --from=goimports-builder /usr/local/go/ /usr/local/go/
 
 # openapi-codegen
 COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
