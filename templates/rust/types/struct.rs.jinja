@@ -10,7 +10,7 @@ use super::{
 };
 
 {{ doc_comment }}
-#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct {{ type.name | to_upper_camel_case }} {
     {% for field in type.fields %}
         {% if field.description is defined -%}
