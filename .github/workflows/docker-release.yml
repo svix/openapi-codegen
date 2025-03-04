@@ -91,7 +91,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - run: echo "IMAGE_TAG=$(date --utc +%Y%m%d)-$(git rev-list HEAD --count)" >> "$GITHUB_ENV"
+      - run: echo "IMAGE_TAG=$(date --utc +%Y%m%d)-$(git rev-list ${{ github.sha }} --count)" >> "$GITHUB_ENV"
 
       - name: Create manifest list and push
         # inside the ${{ runner.temp }}/digests we downloaded empty files with the sha256 digest of the image as the filename
