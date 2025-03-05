@@ -18,8 +18,18 @@ jobs:
         platform:
           - runner: ubuntu-24.04
             name: amd64
+            build-args: |
+              DOTNET_PLATFORM=linux-musl-amd64
+              RUST_TARGET=x86_64-unknown-linux-musl
+              BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl
+              BIOME_HASH=02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82
           - runner: ubuntu-24.04-arm
             name: arm64
+            build-args: |
+              DOTNET_PLATFORM=linux-musl-arm64
+              RUST_TARGET=aarch64-unknown-linux-musl
+              BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-arm64-musl
+              BIOME_HASH=d34937f7b5a6f816af289e972bfd49827921ed43f44547f78180f3e4f539cc41
     name: Build and publish ${{ matrix.platform.name }} docker image
     if: github.ref == 'refs/heads/main'
     runs-on: "${{ matrix.platform.runner }}"
@@ -41,6 +51,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           tags: ${{ env.REGISTRY_IMAGE }}
+          build-args: ${{ matrix.platform.build-args }}
           file: Dockerfile
           cache-from: type=gha
           cache-to: type=gha
@@ -73,6 +84,8 @@ jobs:
       - build
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download digests
         uses: actions/download-artifact@v4
