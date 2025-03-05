@@ -104,7 +104,7 @@ impl PostprocessorLanguage {
             // https://github.com/facebook/ktfmt
             Self::Kotlin => &[("ktfmt", &["--kotlinlang-style"])],
             // https://github.com/belav/csharpier
-            Self::CSharp => &[("dotnet", &["csharpier", "--fast", "--no-msbuild-check"])],
+            Self::CSharp => &[("dotnet-csharpier", &["--fast", "--no-msbuild-check"])],
             // https://github.com/google/google-java-format
             Self::Java => &[("google-java-format", &["-i", "-a"])],
             // https://github.com/biomejs/biome
