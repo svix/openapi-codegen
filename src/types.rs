@@ -194,7 +194,7 @@ impl TypeData {
             .into_iter()
             .map(|(name, schema)| {
                 Field::from_schema(name.clone(), schema, obj.required.contains(&name))
-                    .with_context(|| format!("unsupported field {name}"))
+                    .with_context(|| format!("unsupported field `{name}`"))
             })
             .collect::<anyhow::Result<_>>()?;
 
