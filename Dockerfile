@@ -1,13 +1,28 @@
 # build openapi-codegen
-FROM rust:1.85 AS openapi-codegen-builder
-ARG RUST_TARGET="x86_64-unknown-linux-musl"
+FROM docker.io/lukemathwalker/cargo-chef:latest-rust-1.85 AS chef
 WORKDIR /app
-RUN rustup target add ${RUST_TARGET}
+
+FROM chef AS planner
+
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY build.rs .
 COPY src /app/src
-RUN cargo build --target ${RUST_TARGET} --release --bin openapi-codegen
+
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS openapi-codegen-builder
+
+COPY --from=planner /app/recipe.json recipe.json
+
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY Cargo.toml .
+COPY Cargo.lock .
+COPY build.rs .
+COPY src /app/src
+
+RUN cargo build --release --bin openapi-codegen
 
 # build rubyfmt
 FROM docker.io/rust:1.85 AS rubyfmt-builder
@@ -23,7 +38,7 @@ RUN cargo build --release
 
 # build csharpier
 FROM alpine:3.21 AS csharpier-builder
-ARG DOTNET_PLATFORM="linux-musl-amd64"
+ARG TARGETARCH="amd64"
 WORKDIR /app
 # csharpier defines .net9 in a file called global.json, so we need it on the system even if we don't use it
 RUN apk add git dotnet9-sdk dotnet8-sdk
@@ -31,10 +46,9 @@ RUN git clone https://github.com/belav/csharpier /app && \
     git checkout f359fbda3dce613f8c69e4680d65727eefee9d16
 # we build using .net8
 RUN dotnet publish --framework net8.0 -o output \
-    -r ${DOTNET_PLATFORM} /p:StripSymbols=true \
+    -r linux-musl-${TARGETARCH} /p:StripSymbols=true \
     /p:InvariantGlobalization=true /p:SelfContained=true \
     /p:PublishSingleFile=true Src/CSharpier.Cli
-
 
 # build goimports
 FROM docker.io/golang:1.24-alpine AS goimports-builder
@@ -48,9 +62,33 @@ RUN rm -rf /usr/local/go/*.md && \
     rm -rf /usr/local/go/test/*
 
 
+FROM alpine:3.21 AS biome-downloader
+ARG TARGETPLATFORM="linux/amd64"
+ENV TARGETPLATFORM=$TARGETPLATFORM
+
+RUN apk add --no-cache curl bash
+COPY <<"EOT" /download-biome.sh
+#!/bin/bash
+set -eo pipefail
+
+if [[ $TARGETPLATFORM == "linux/arm64" ]]; then
+    SHA256SUM="d34937f7b5a6f816af289e972bfd49827921ed43f44547f78180f3e4f539cc41"
+    BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-arm64-musl"
+else
+    SHA256SUM="02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82"
+    BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl"
+fi
+echo "$SHA256SUM biome" > biome.sha256
+curl -fsSL --output biome "$BIOME_DL_LINK"
+sha256sum biome.sha256
+chmod +x biome
+EOT
+RUN bash /download-biome.sh
+
+
+
 # main image
-FROM alpine:3.21
-ARG RUST_TARGET="x86_64-unknown-linux-musl"
+FROM alpine:3.21 AS asd
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/.cargo/bin"
 RUN apk add --no-cache openjdk17-jre-headless curl gcompat libgcc ruff libstdc++
 
@@ -77,18 +115,7 @@ RUN echo "25157797a0a972c2290b5bc71530c4f7ad646458025e3484412a6e5a9b8c9aa6 googl
 
 
 # Javascript
-ARG BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl"
-ARG BIOME_HASH="02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82"
-RUN echo "${BIOME_HASH} biome" > biome.sha256 && \
-    curl -fsSL --output biome "${BIOME_DL_LINK}" && \
-    sha256sum biome.sha256 -c && \
-    rm biome.sha256 && \
-    mv biome /usr/bin/  && \
-    chmod +x /usr/bin/biome
-
-# openapi-codegen
-COPY --from=openapi-codegen-builder /app/target/${RUST_TARGET}/release/openapi-codegen /usr/bin/
-
+COPY --from=biome-downloader /biome /usr/bin
 # Ruby
 COPY --from=rubyfmt-builder /app/target/release/rubyfmt-main /usr/bin/rubyfmt
 
@@ -117,3 +144,6 @@ RUN apk add --no-cache binutils && \
     rm -rf /root/.rustup/toolchains/nightly-*/share && \
     strip /root/.rustup/toolchains/nightly-*/lib/librustc_driver-*.so && \
     apk del binutils
+
+# openapi-codegen
+COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
