@@ -80,9 +80,7 @@ impl Type {
         let data = match s.instance_type {
             Some(SingleOrVec::Single(it)) => match *it {
                 InstanceType::Object => {
-                    let obj = s
-                        .object
-                        .context("unsupported: object type without further validation")?;
+                    let obj = s.object.unwrap_or_default();
                     TypeData::from_object_schema(*obj, s.subschemas)?
                 }
                 InstanceType::Integer => {
@@ -194,7 +192,7 @@ impl TypeData {
             .into_iter()
             .map(|(name, schema)| {
                 Field::from_schema(name.clone(), schema, obj.required.contains(&name))
-                    .with_context(|| format!("unsupported field {name}"))
+                    .with_context(|| format!("unsupported field `{name}`"))
             })
             .collect::<anyhow::Result<_>>()?;
 
