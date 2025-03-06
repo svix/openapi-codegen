@@ -79,7 +79,7 @@ pub(crate) fn generate(
     match tpl_kind {
         TemplateKind::OperationOptions => generator.generate_api_resources_options(api)?,
         TemplateKind::ApiResource => generator.generate_api_resources(api)?,
-        TemplateKind::Type => generator.generate_types(types)?,
+        TemplateKind::Type => generator.generate_types(types, output_dir)?,
         TemplateKind::Summary => generator.generate_summary(types, api)?,
     }
 
@@ -144,10 +144,14 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_types(self, Types(types): Types) -> anyhow::Result<()> {
+    fn generate_types(self, Types(types): Types, output_dir: &Utf8Path) -> anyhow::Result<()> {
+        let output_dir = output_dir.as_str();
         for (name, ty) in types {
             let referenced_components = ty.referenced_components();
-            self.render_tpl(Some(&name), context! { type => ty, referenced_components })?;
+            self.render_tpl(
+                Some(&name),
+                context! { type => ty, referenced_components, output_dir },
+            )?;
         }
 
         Ok(())

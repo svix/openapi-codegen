@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use camino::Utf8Path;
+use fs_err as fs;
 use heck::{
     ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
 };
@@ -139,6 +140,14 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
                 );
             }
             Ok(path_str)
+        },
+    );
+
+    env.add_function(
+        // For java lib we need to create extra files.
+        "generate_extra_file",
+        |filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
+            fs::write(&*filename, file_contents.as_bytes()).unwrap();
         },
     );
 
