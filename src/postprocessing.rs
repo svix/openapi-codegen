@@ -1,5 +1,6 @@
-use std::{cell::RefCell, collections::BTreeSet, io, process::Command, sync::Mutex};
+use std::{cell::RefCell, io, process::Command};
 
+use anyhow::bail;
 use camino::{Utf8Path, Utf8PathBuf};
 
 #[derive(Debug, Clone)]
@@ -34,13 +35,13 @@ impl Postprocessor {
         Self::new(lang, output_dir.to_path_buf())
     }
 
-    pub(crate) fn run_postprocessor(&self) {
+    pub(crate) fn run_postprocessor(&self) -> anyhow::Result<()> {
         match self.postprocessor_lang {
             // pass each file to postprocessor at once
             PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &self.files_to_process.borrow());
+                    execute_command(command, args, &self.files_to_process.borrow())?;
                 }
             }
             // pass output dir to postprocessor
@@ -52,11 +53,12 @@ impl Postprocessor {
             | PostprocessorLanguage::TypeScript => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &vec![self.output_dir.clone()]);
+                    execute_command(command, args, &vec![self.output_dir.clone()])?;
                 }
             }
             PostprocessorLanguage::Unknown => (),
         }
+        Ok(())
     }
     pub(crate) fn add_path(&self, path: &Utf8Path) {
         let mut v = self.files_to_process.borrow_mut();
@@ -140,25 +142,20 @@ impl PostprocessorLanguage {
     }
 }
 
-fn execute_command(command: &'static str, args: &[&str], paths: &Vec<Utf8PathBuf>) {
+fn execute_command(
+    command: &'static str,
+    args: &[&str],
+    paths: &Vec<Utf8PathBuf>,
+) -> anyhow::Result<()> {
     let result = Command::new(command).args(args).args(paths).status();
     match result {
-        Ok(exit_status) if exit_status.success() => {}
+        Ok(exit_status) if exit_status.success() => Ok(()),
         Ok(exit_status) => {
-            tracing::warn!(exit_status = exit_status.code(), "`{command}` failed");
+            bail!("`{command}` failed with exit code {:?}", exit_status.code());
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            // only print one error per command that's not found
-            static NOT_FOUND_LOGGED_FOR: Mutex<BTreeSet<&str>> = Mutex::new(BTreeSet::new());
-            if NOT_FOUND_LOGGED_FOR.lock().unwrap().insert(command) {
-                tracing::warn!("`{command}` not found");
-            }
+            bail!("`{command}` not found - run with --no-postprocessing to skip");
         }
-        Err(e) => {
-            tracing::warn!(
-                error = &e as &dyn std::error::Error,
-                "running `{command}` failed"
-            );
-        }
+        Err(e) => Err(e.into()),
     }
 }
