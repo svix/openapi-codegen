@@ -84,7 +84,7 @@ pub(crate) fn generate(
     }
 
     if !flags.no_postprocess {
-        postprocessor.run_postprocessor();
+        postprocessor.run_postprocessor()?;
     }
 
     Ok(())
