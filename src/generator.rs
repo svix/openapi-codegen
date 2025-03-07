@@ -180,9 +180,13 @@ impl Generator<'_> {
 
         let out_file = BufWriter::new(File::create(&file_path)?);
 
-        self.tpl.render_to_write(ctx, out_file)?;
+        let state = self.tpl.render_to_write(ctx, out_file)?;
 
         if !self.flags.no_postprocess {
+            if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
+                self.postprocessor
+                    .add_path(Utf8Path::new(extra_generated_file.as_str().unwrap()));
+            }
             self.postprocessor.add_path(&file_path);
         }
 
