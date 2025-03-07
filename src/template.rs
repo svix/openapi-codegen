@@ -6,7 +6,7 @@ use heck::{
     ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
 };
 use itertools::Itertools as _;
-use minijinja::{path_loader, value::Kwargs, Value};
+use minijinja::{path_loader, value::Kwargs, State, Value};
 
 pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
@@ -146,8 +146,9 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
     env.add_function(
         // For java lib we need to create extra files.
         "generate_extra_file",
-        |filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
+        |state: &State, filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
             fs::write(&*filename, file_contents.as_bytes()).unwrap();
+            state.set_temp("extra_generated_file", filename.into());
         },
     );
 
