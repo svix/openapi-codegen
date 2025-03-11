@@ -710,7 +710,7 @@ impl FieldType {
     pub(crate) fn referenced_schema(&self) -> Option<&str> {
         match self {
             Self::SchemaRef(v) => {
-                // TODO: the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
+                // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
                 // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
                 // we should change this server side, but for now I am changing it here
                 if v == "Data" {
@@ -913,7 +913,7 @@ impl serde::Serialize for FieldType {
 }
 
 fn filter_schema_ref<'a>(name: &'a String, json_obj_typename: &'a str) -> Cow<'a, str> {
-    // TODO: the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
+    // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
     // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
     // we should change this server side, but for now I am changing it here
     if name == "Data" {
