@@ -127,11 +127,11 @@ fn analyze_and_generate(
     path: &Utf8Path,
     flags: GenerateFlags,
 ) -> anyhow::Result<()> {
+    let webhooks = get_webhooks(&spec);
     let mut components = spec.components.unwrap_or_default();
-
     if let Some(paths) = spec.paths {
         let api = Api::new(paths, &components.schemas, flags.include_hidden).unwrap();
-        let types = api.types(&mut components.schemas);
+        let types = api.types(&mut components.schemas, webhooks);
 
         if flags.debug {
             let mut api_file = BufWriter::new(File::create("api.ron")?);
@@ -160,4 +160,29 @@ fn write_codegen_metadata(input_sha256sum: String, output_dir: &Utf8Path) -> any
     let encoded_metadata = serde_json::to_vec_pretty(&codegen_metadata)?;
     std::fs::write(metadata_path, &encoded_metadata)?;
     Ok(())
+}
+
+fn get_webhooks(spec: &OpenApi) -> Vec<String> {
+    let empty_obj = serde_json::json!({});
+    let empty_obj = empty_obj.as_object().unwrap();
+    let mut referenced_components = std::collections::BTreeSet::<String>::new();
+    if let Some(webhooks) = spec.extensions.get("x-webhooks") {
+        for req in webhooks.as_object().unwrap_or(empty_obj).values() {
+            for method in req.as_object().unwrap_or(empty_obj).values() {
+                if let Some(schema_ref) = method
+                    .get("requestBody")
+                    .and_then(|v| v.get("content"))
+                    .and_then(|v| v.get("application/json"))
+                    .and_then(|v| v.get("schema"))
+                    .and_then(|v| v.get("$ref"))
+                    .and_then(|v| v.as_str())
+                {
+                    if let Some(schema_name) = schema_ref.split('/').next_back() {
+                        referenced_components.insert(schema_name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    referenced_components.into_iter().collect::<Vec<String>>()
 }
