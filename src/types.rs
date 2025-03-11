@@ -614,10 +614,8 @@ impl FieldType {
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("List<{}>", field_type.to_csharp_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            Self::SchemaRef(name) => filter_schema_ref(name, "Object"),
+            Self::StringConst(_) => "string".into(),
         }
     }
 
@@ -636,10 +634,8 @@ impl FieldType {
             Self::List(field_type) | Self::Set(field_type) => {
                 format!("[]{}", field_type.to_go_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            Self::SchemaRef(name) => filter_schema_ref(name, "map[string]any"),
+            Self::StringConst(_) => "string".into(),
         }
     }
 
@@ -659,10 +655,8 @@ impl FieldType {
             Self::JsonObject => "Map<String,Any>".into(),
             Self::List(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
             Self::Set(field_type) => format!("Set<{}>", field_type.to_kotlin_typename()).into(),
-            Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            Self::SchemaRef(name) => filter_schema_ref(name, "Map<String,Any>"),
+            Self::StringConst(_) => "String".into(),
         }
     }
 
@@ -681,10 +675,8 @@ impl FieldType {
             Self::Map { value_ty } => {
                 format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
-            Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            Self::SchemaRef(name) => filter_schema_ref(name, "any"),
+            Self::StringConst(_) => "string".into(),
         }
     }
 
@@ -710,14 +702,23 @@ impl FieldType {
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef(name) => name.clone().into(),
-            Self::StringConst(_) => unreachable!("FieldType::const should never be exposed to template code"),
+            Self::SchemaRef(name) => filter_schema_ref(name, "serde_json::Value"),
+            Self::StringConst(_) => "String".into()
         }
     }
 
     pub(crate) fn referenced_schema(&self) -> Option<&str> {
         match self {
-            Self::SchemaRef(v) => Some(v),
+            Self::SchemaRef(v) => {
+                // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
+                // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
+                // we should change this server side, but for now I am changing it here
+                if v == "Data" {
+                    None
+                } else {
+                    Some(v)
+                }
+            }
             Self::List(ty) | Self::Set(ty) | Self::Map { value_ty: ty } => ty.referenced_schema(),
             _ => None,
         }
@@ -729,7 +730,7 @@ impl FieldType {
             Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => "int".into(),
             Self::String => "str".into(),
             Self::DateTime => "datetime".into(),
-            Self::SchemaRef(name) => name.clone().into(),
+            Self::SchemaRef(name) => filter_schema_ref(name, "t.Dict[str, t.Any]"),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
             Self::Set(field_type) | Self::List(field_type) => {
@@ -738,9 +739,7 @@ impl FieldType {
             Self::Map { value_ty } => {
                 format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
             }
-            Self::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            Self::StringConst(_) => "str".into(),
         }
     }
 
@@ -762,10 +761,9 @@ impl FieldType {
             FieldType::Map { value_ty } => {
                 format!("Map<String,{}>", value_ty.to_java_typename()).into()
             }
-            FieldType::SchemaRef(name) => name.clone().into(),
-            FieldType::StringConst(_) => {
-                unreachable!("FieldType::const should never be exposed to template code")
-            }
+            FieldType::SchemaRef(name) => filter_schema_ref(name, "Object"),
+            // backwards compat
+            FieldType::StringConst(_) => "TypeEnum".into(),
         }
     }
 
@@ -853,6 +851,10 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_json_object")?;
                 Ok(matches!(**self, Self::JsonObject).into())
             }
+            "is_string_const" => {
+                ensure_no_args(args, "is_string_const")?;
+                Ok(matches!(**self, Self::StringConst(_)).into())
+            }
 
             // Returns the inner type of a list or set
             "inner_type" => {
@@ -878,6 +880,14 @@ impl minijinja::value::Object for FieldType {
                 };
                 Ok(ty.into())
             }
+            "string_const_val" => {
+                ensure_no_args(args, "string_const_val")?;
+                let val = match &**self {
+                    Self::StringConst(val) => Some(minijinja::Value::from_safe_string(val.clone())),
+                    _ => None,
+                };
+                Ok(val.into())
+            }
             _ => Err(minijinja::Error::from(minijinja::ErrorKind::UnknownMethod)),
         }
     }
@@ -899,5 +909,16 @@ impl serde::Serialize for FieldType {
         S: serde::Serializer,
     {
         minijinja::Value::from_object(self.clone()).serialize(serializer)
+    }
+}
+
+fn filter_schema_ref<'a>(name: &'a String, json_obj_typename: &'a str) -> Cow<'a, str> {
+    // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
+    // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
+    // we should change this server side, but for now I am changing it here
+    if name == "Data" {
+        json_obj_typename.into()
+    } else {
+        name.clone().into()
     }
 }

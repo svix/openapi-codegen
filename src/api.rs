@@ -57,8 +57,14 @@ impl Api {
             .flat_map(Resource::referenced_components)
     }
 
-    pub(crate) fn types(&self, schemas: &mut IndexMap<String, openapi::SchemaObject>) -> Types {
-        Types::from_referenced_components(schemas, self.referenced_components())
+    pub(crate) fn types(
+        &self,
+        schemas: &mut IndexMap<String, openapi::SchemaObject>,
+        webhooks: Vec<String>,
+    ) -> Types {
+        let mut referenced_components: Vec<&str> = webhooks.iter().map(|s| &**s).collect();
+        referenced_components.extend(self.referenced_components());
+        Types::from_referenced_components(schemas, referenced_components.into_iter())
     }
 }
 

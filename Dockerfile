@@ -86,9 +86,6 @@ RUN echo "${BIOME_HASH} biome" > biome.sha256 && \
     mv biome /usr/bin/  && \
     chmod +x /usr/bin/biome
 
-# openapi-codegen
-COPY --from=openapi-codegen-builder /app/target/${RUST_TARGET}/release/openapi-codegen /usr/bin/
-
 # Ruby
 COPY --from=rubyfmt-builder /app/target/release/rubyfmt-main /usr/bin/rubyfmt
 
@@ -117,3 +114,6 @@ RUN apk add --no-cache binutils && \
     rm -rf /root/.rustup/toolchains/nightly-*/share && \
     strip /root/.rustup/toolchains/nightly-*/lib/librustc_driver-*.so && \
     apk del binutils
+
+# openapi-codegen
+COPY --from=openapi-codegen-builder /app/target/${RUST_TARGET}/release/openapi-codegen /usr/bin/
