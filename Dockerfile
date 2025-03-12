@@ -5,7 +5,6 @@ WORKDIR /app
 RUN rustup target add ${RUST_TARGET}
 COPY Cargo.toml .
 COPY Cargo.lock .
-COPY build.rs .
 COPY src /app/src
 RUN cargo build --target ${RUST_TARGET} --release --bin openapi-codegen
 
