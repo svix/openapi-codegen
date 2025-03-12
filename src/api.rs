@@ -9,6 +9,7 @@ use serde::Serialize;
 use crate::{
     types::{FieldType, Types},
     util::{get_schema_name, serialize_btree_map_values},
+    IncludeMode,
 };
 
 /// The API we generate a client for.
@@ -24,7 +25,7 @@ impl Api {
     pub(crate) fn new(
         paths: openapi::Paths,
         component_schemas: &IndexMap<String, openapi::SchemaObject>,
-        include_hidden: bool,
+        include_mode: IncludeMode,
     ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
@@ -40,7 +41,7 @@ impl Api {
 
             for (method, op) in path_item {
                 if let Some((res_path, op)) =
-                    Operation::from_openapi(&path, method, op, component_schemas, include_hidden)
+                    Operation::from_openapi(&path, method, op, component_schemas, include_mode)
                 {
                     let resource = get_or_insert_resource(&mut resources, res_path);
                     resource.operations.push(op);
@@ -184,7 +185,7 @@ impl Operation {
         method: &str,
         op: openapi::Operation,
         component_schemas: &IndexMap<String, aide::openapi::SchemaObject>,
-        include_hidden: bool,
+        include_mode: IncludeMode,
     ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
@@ -192,7 +193,14 @@ impl Operation {
         };
         tracing::Span::current().record("op_id", &op_id);
 
-        if !include_hidden && op.extensions.get("x-hidden").is_some_and(|val| val == true) {
+        // verbose, but very easy to understand
+        let x_hidden = op.extensions.get("x-hidden").is_some_and(|val| val == true);
+        let include_operation = match include_mode {
+            IncludeMode::OnlyPublic => !x_hidden,
+            IncludeMode::PublicAndHidden => true,
+            IncludeMode::OnlyHidden => x_hidden,
+        };
+        if !include_operation {
             return None;
         }
 
