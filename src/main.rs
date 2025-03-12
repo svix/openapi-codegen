@@ -53,13 +53,24 @@ struct GenerateFlags {
     #[clap(long)]
     no_postprocess: bool,
 
-    /// Include operations in the output that are marked `"x-hidden": true`.
-    #[clap(long)]
-    include_hidden: bool,
+    /// Which operations to include
+    #[clap(long, value_enum, default_value_t=IncludeMode::OnlyPublic)]
+    include_mode: IncludeMode,
 
     /// Write api.ron and types.ron files, as a debugging aid.
     #[clap(long)]
     debug: bool,
+}
+
+#[derive(Copy, Clone, clap::ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+enum IncludeMode {
+    /// Only public options
+    OnlyPublic,
+    /// Both public operations and operations marked with `x-hidden`
+    PublicAndHidden,
+    /// Only operations marked with `x-hidden`
+    OnlyHidden,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -119,7 +130,7 @@ fn analyze_and_generate(
     let webhooks = get_webhooks(&spec);
     let mut components = spec.components.unwrap_or_default();
     if let Some(paths) = spec.paths {
-        let api = Api::new(paths, &components.schemas, flags.include_hidden).unwrap();
+        let api = Api::new(paths, &components.schemas, flags.include_mode).unwrap();
         let types = api.types(&mut components.schemas, webhooks);
 
         if flags.debug {
