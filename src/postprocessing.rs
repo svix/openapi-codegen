@@ -154,7 +154,7 @@ fn execute_command(
             bail!("`{command}` failed with exit code {:?}", exit_status.code());
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            bail!("`{command}` not found - run with --no-postprocessing to skip");
+            bail!("`{command}` not found - run with --no-postprocess to skip");
         }
         Err(e) => Err(e.into()),
     }
