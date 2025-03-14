@@ -26,7 +26,7 @@ impl Api {
         paths: openapi::Paths,
         component_schemas: &IndexMap<String, openapi::SchemaObject>,
         include_mode: IncludeMode,
-        specified_operations: BTreeSet<String>,
+        excluded_operations: BTreeSet<String>,
     ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
@@ -47,7 +47,7 @@ impl Api {
                     op,
                     component_schemas,
                     include_mode,
-                    &specified_operations,
+                    &excluded_operations,
                 ) {
                     let resource = get_or_insert_resource(&mut resources, res_path);
                     resource.operations.push(op);
@@ -192,7 +192,7 @@ impl Operation {
         op: openapi::Operation,
         component_schemas: &IndexMap<String, aide::openapi::SchemaObject>,
         include_mode: IncludeMode,
-        specified_operations: &BTreeSet<String>,
+        excluded_operations: &BTreeSet<String>,
     ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
@@ -206,9 +206,8 @@ impl Operation {
             IncludeMode::OnlyPublic => !x_hidden,
             IncludeMode::PublicAndHidden => true,
             IncludeMode::OnlyHidden => x_hidden,
-            IncludeMode::Specified => specified_operations.contains(&op_id),
         };
-        if !include_operation {
+        if !include_operation || excluded_operations.contains(&op_id) {
             return None;
         }
 

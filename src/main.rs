@@ -39,17 +39,15 @@ enum Command {
         input_file: String,
 
         /// Path to the output directory.
-        #[clap(long)]
+        #[clap(short, long)]
         output_dir: Option<Utf8PathBuf>,
 
         #[clap(flatten)]
         flags: GenerateFlags,
 
-        /// The specified operations for --include-mode=specified
-        ///
-        /// This expects the operation ID, for example v1.message.create
-        #[clap(long)]
-        specified_operations: Vec<String>,
+        /// Ignore a specified operation id
+        #[clap(short, long = "exclude-op-id")]
+        excluded_operations: Vec<String>,
     },
 }
 
@@ -78,8 +76,6 @@ enum IncludeMode {
     PublicAndHidden,
     /// Only operations marked with `x-hidden`
     OnlyHidden,
-    /// Only include operations specified in `--specified-operations`
-    Specified,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -91,9 +87,9 @@ fn main() -> anyhow::Result<()> {
         input_file,
         output_dir,
         flags,
-        specified_operations,
+        excluded_operations,
     } = args.command;
-    let specified_operations = BTreeSet::from_iter(specified_operations);
+    let excluded_operations = BTreeSet::from_iter(excluded_operations);
 
     let spec = fs::read_to_string(&input_file)?;
 
@@ -101,7 +97,7 @@ fn main() -> anyhow::Result<()> {
 
     match &output_dir {
         Some(path) => {
-            analyze_and_generate(spec, template.into(), path, flags, specified_operations)?;
+            analyze_and_generate(spec, template.into(), path, flags, excluded_operations)?;
         }
         None => {
             let output_dir_root = PathBuf::from("out");
@@ -123,7 +119,7 @@ fn main() -> anyhow::Result<()> {
                 .path()
                 .try_into()
                 .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template.into(), path, flags, specified_operations)?;
+            analyze_and_generate(spec, template.into(), path, flags, excluded_operations)?;
             // Persist the TempDir if everything was successful
             _ = output_dir.into_path();
         }
@@ -137,7 +133,7 @@ fn analyze_and_generate(
     template: String,
     path: &Utf8Path,
     flags: GenerateFlags,
-    specified_operations: BTreeSet<String>,
+    excluded_operations: BTreeSet<String>,
 ) -> anyhow::Result<()> {
     let webhooks = get_webhooks(&spec);
     let mut components = spec.components.unwrap_or_default();
@@ -146,7 +142,7 @@ fn analyze_and_generate(
             paths,
             &components.schemas,
             flags.include_mode,
-            specified_operations,
+            excluded_operations,
         )
         .unwrap();
         let types = api.types(&mut components.schemas, webhooks);
