@@ -1,12 +1,26 @@
 # build openapi-codegen
-FROM rust:1.85 AS openapi-codegen-builder
-ARG RUST_TARGET="x86_64-unknown-linux-musl"
+FROM docker.io/lukemathwalker/cargo-chef:latest-rust-1.85 AS chef
 WORKDIR /app
-RUN rustup target add ${RUST_TARGET}
+
+FROM chef AS planner
+
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY src /app/src
-RUN cargo build --target ${RUST_TARGET} --release --bin openapi-codegen
+
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS openapi-codegen-builder
+
+COPY --from=planner /app/recipe.json recipe.json
+
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY Cargo.toml .
+COPY Cargo.lock .
+COPY src /app/src
+
+RUN cargo build --release --bin openapi-codegen
 
 # build rubyfmt
 FROM docker.io/rust:1.85 AS rubyfmt-builder
@@ -49,7 +63,6 @@ RUN rm -rf /usr/local/go/*.md && \
 
 # main image
 FROM alpine:3.21
-ARG RUST_TARGET="x86_64-unknown-linux-musl"
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/.cargo/bin"
 RUN apk add --no-cache openjdk17-jre-headless curl gcompat libgcc ruff libstdc++
 
@@ -115,4 +128,4 @@ RUN apk add --no-cache binutils && \
     apk del binutils
 
 # openapi-codegen
-COPY --from=openapi-codegen-builder /app/target/${RUST_TARGET}/release/openapi-codegen /usr/bin/
+COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
