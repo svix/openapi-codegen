@@ -523,7 +523,7 @@ impl FieldType {
                     }
 
                     match obj.format.as_deref() {
-                        None => Self::String,
+                        None | Some("color") => Self::String,
                         Some("date-time") => Self::DateTime,
                         Some("uri") => Self::Uri,
                         Some(f) => bail!("unsupported string format: `{f:?}`"),
