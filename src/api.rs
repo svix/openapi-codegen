@@ -86,7 +86,7 @@ fn get_or_insert_resource(
         .or_insert_with(|| Resource::new(name.clone()));
 
     for sub_name in path_iter {
-        name.push('-');
+        name.push('.');
         name.push_str(&sub_name);
 
         r = r
