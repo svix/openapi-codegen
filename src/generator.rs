@@ -12,7 +12,6 @@ use crate::{
     postprocessing::Postprocessor,
     template,
     types::Types,
-    GenerateFlags,
 };
 
 #[derive(Default, Deserialize)]
@@ -30,7 +29,7 @@ pub(crate) fn generate(
     types: Types,
     tpl_name: String,
     output_dir: &Utf8Path,
-    flags: GenerateFlags,
+    no_postprocess: bool,
 ) -> anyhow::Result<()> {
     let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (basename, &tpl_name),
@@ -73,7 +72,7 @@ pub(crate) fn generate(
         tpl_file_ext,
         output_dir,
         postprocessor: &postprocessor,
-        flags,
+        no_postprocess,
     };
 
     match tpl_kind {
@@ -83,7 +82,7 @@ pub(crate) fn generate(
         TemplateKind::Summary => generator.generate_summary(types, api)?,
     }
 
-    if !flags.no_postprocess {
+    if !no_postprocess {
         postprocessor.run_postprocessor()?;
     }
 
@@ -95,7 +94,7 @@ struct Generator<'a> {
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
     postprocessor: &'a Postprocessor,
-    flags: GenerateFlags,
+    no_postprocess: bool,
 }
 
 impl Generator<'_> {
@@ -182,7 +181,7 @@ impl Generator<'_> {
 
         let state = self.tpl.render_to_write(ctx, out_file)?;
 
-        if !self.flags.no_postprocess {
+        if !self.no_postprocess {
             if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
                 self.postprocessor
                     .add_path(Utf8Path::new(extra_generated_file.as_str().unwrap()));
