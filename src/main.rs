@@ -6,10 +6,11 @@ use std::{
 
 use aide::openapi::OpenApi;
 use anyhow::Context as _;
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs, File};
 use tempfile::TempDir;
+use types::Types;
 
 mod api;
 mod generator;
@@ -22,6 +23,14 @@ use self::{api::Api, generator::generate};
 
 #[derive(Parser)]
 struct CliArgs {
+    /// Which operations to include.
+    #[arg(global = true, long, value_enum, default_value_t = IncludeMode::OnlyPublic)]
+    include_mode: IncludeMode,
+
+    /// Ignore a specified operation id
+    #[arg(global = true, short, long = "exclude-op-id")]
+    excluded_operations: Vec<String>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -31,40 +40,27 @@ enum Command {
     /// Generate code from an OpenAPI spec.
     Generate {
         /// Path to a template file to use (`.jinja` extension can be omitted).
-        #[clap(short, long)]
+        #[arg(short, long)]
         template: Utf8PathBuf,
 
         /// Path to the input file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         input_file: String,
 
         /// Path to the output directory.
-        #[clap(short, long)]
+        #[arg(short, long)]
         output_dir: Option<Utf8PathBuf>,
 
-        #[clap(flatten)]
-        flags: GenerateFlags,
-
-        /// Ignore a specified operation id
-        #[clap(short, long = "exclude-op-id")]
-        excluded_operations: Vec<String>,
+        /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
+        #[arg(long)]
+        no_postprocess: bool,
     },
-}
-
-// Boolean flags for generate command, separate struct to simplify passing them around.
-#[derive(Clone, Copy, clap::Args)]
-struct GenerateFlags {
-    /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
-    #[clap(long)]
-    no_postprocess: bool,
-
-    /// Which operations to include
-    #[clap(long, value_enum, default_value_t=IncludeMode::OnlyPublic)]
-    include_mode: IncludeMode,
-
-    /// Write api.ron and types.ron files, as a debugging aid.
-    #[clap(long)]
-    debug: bool,
+    /// Generate api.ron and types.ron files, for debugging.
+    Debug {
+        /// Path to the input file.
+        #[arg(short, long)]
+        input_file: String,
+    },
 }
 
 #[derive(Copy, Clone, clap::ValueEnum)]
@@ -82,83 +78,85 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_writer(io::stderr).init();
 
     let args = CliArgs::parse();
-    let Command::Generate {
-        template,
-        input_file,
-        output_dir,
-        flags,
-        excluded_operations,
-    } = args.command;
-    let excluded_operations = BTreeSet::from_iter(excluded_operations);
+    let input_file = match &args.command {
+        Command::Generate { input_file, .. } => input_file,
+        Command::Debug { input_file } => input_file,
+    };
 
-    let spec = fs::read_to_string(&input_file)?;
+    let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
 
+    let spec = fs::read_to_string(input_file)?;
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
 
-    match &output_dir {
-        Some(path) => {
-            analyze_and_generate(spec, template.into(), path, flags, excluded_operations)?;
-        }
-        None => {
-            let output_dir_root = PathBuf::from("out");
-            if !output_dir_root.exists() {
-                fs::create_dir(&output_dir_root).context("failed to create out dir")?;
+    let webhooks = get_webhooks(&spec);
+    let mut components = spec.components.unwrap_or_default();
+    let paths = spec.paths.context("found no endpoints in input spec")?;
+    let api = Api::new(
+        paths,
+        &components.schemas,
+        args.include_mode,
+        excluded_operations,
+    )
+    .unwrap();
+    let types = api.types(&mut components.schemas, webhooks);
+
+    match args.command {
+        Command::Generate {
+            template,
+            output_dir,
+            no_postprocess,
+            ..
+        } => {
+            match &output_dir {
+                Some(path) => {
+                    generate(api, types, template.into(), path, no_postprocess)?;
+                    println!("done! output written to {path}");
+                }
+                None => {
+                    let output_dir_root = PathBuf::from("out");
+                    if !output_dir_root.exists() {
+                        fs::create_dir(&output_dir_root).context("failed to create out dir")?;
+                    }
+
+                    let tpl_file_name = template
+                        .file_name()
+                        .context("template must have a file name")?;
+                    let prefix = tpl_file_name
+                        .strip_suffix(".jinja")
+                        .unwrap_or(tpl_file_name);
+
+                    let output_dir =
+                        TempDir::with_prefix_in(prefix.to_owned() + ".", output_dir_root)
+                            .context("failed to create tempdir")?;
+
+                    let path = output_dir
+                        .path()
+                        .try_into()
+                        .context("non-UTF8 tempdir path")?;
+
+                    generate(api, types, template.into(), path, no_postprocess)?;
+                    println!("done! output written to {path}");
+
+                    // Persist the TempDir if everything was successful
+                    _ = output_dir.into_path();
+                }
             }
-
-            let tpl_file_name = template
-                .file_name()
-                .context("template must have a file name")?;
-            let prefix = tpl_file_name
-                .strip_suffix(".jinja")
-                .unwrap_or(tpl_file_name);
-
-            let output_dir = TempDir::with_prefix_in(prefix.to_owned() + ".", output_dir_root)
-                .context("failed to create tempdir")?;
-
-            let path = output_dir
-                .path()
-                .try_into()
-                .context("non-UTF8 tempdir path")?;
-            analyze_and_generate(spec, template.into(), path, flags, excluded_operations)?;
-            // Persist the TempDir if everything was successful
-            _ = output_dir.into_path();
+        }
+        Command::Debug { .. } => {
+            write_debug_files(&api, &types)?;
         }
     }
 
     Ok(())
 }
 
-fn analyze_and_generate(
-    spec: OpenApi,
-    template: String,
-    path: &Utf8Path,
-    flags: GenerateFlags,
-    excluded_operations: BTreeSet<String>,
-) -> anyhow::Result<()> {
-    let webhooks = get_webhooks(&spec);
-    let mut components = spec.components.unwrap_or_default();
-    if let Some(paths) = spec.paths {
-        let api = Api::new(
-            paths,
-            &components.schemas,
-            flags.include_mode,
-            excluded_operations,
-        )
-        .unwrap();
-        let types = api.types(&mut components.schemas, webhooks);
+fn write_debug_files(api: &Api, types: &Types) -> anyhow::Result<()> {
+    let mut api_file = BufWriter::new(File::create("api.ron")?);
+    writeln!(api_file, "{api:#?}")?;
 
-        if flags.debug {
-            let mut api_file = BufWriter::new(File::create("api.ron")?);
-            writeln!(api_file, "{api:#?}")?;
+    let mut types_file = BufWriter::new(File::create("types.ron")?);
+    writeln!(types_file, "{types:#?}")?;
 
-            let mut types_file = BufWriter::new(File::create("types.ron")?);
-            writeln!(types_file, "{types:#?}")?;
-        }
-
-        generate(api, types, template, path, flags)?;
-    }
-
-    println!("done! output written to {path}");
     Ok(())
 }
 
