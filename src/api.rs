@@ -27,6 +27,7 @@ impl Api {
         component_schemas: &IndexMap<String, openapi::SchemaObject>,
         include_mode: IncludeMode,
         excluded_operations: BTreeSet<String>,
+        specified_operations: BTreeSet<String>,
     ) -> anyhow::Result<Self> {
         let mut resources = BTreeMap::new();
 
@@ -48,6 +49,7 @@ impl Api {
                     component_schemas,
                     include_mode,
                     &excluded_operations,
+                    &specified_operations,
                 ) {
                     let resource = get_or_insert_resource(&mut resources, res_path);
                     resource.operations.push(op);
@@ -68,8 +70,14 @@ impl Api {
         &self,
         schemas: &mut IndexMap<String, openapi::SchemaObject>,
         webhooks: Vec<String>,
+        include_mode: IncludeMode,
     ) -> Types {
-        let mut referenced_components: Vec<&str> = webhooks.iter().map(|s| &**s).collect();
+        let mut referenced_components: Vec<&str> = match include_mode {
+            IncludeMode::OnlyPublic | IncludeMode::PublicAndHidden | IncludeMode::OnlyHidden => {
+                webhooks.iter().map(|s| &**s).collect()
+            }
+            IncludeMode::OnlySpecified => vec![],
+        };
         referenced_components.extend(self.referenced_components());
         Types::from_referenced_components(schemas, referenced_components.into_iter())
     }
@@ -193,6 +201,7 @@ impl Operation {
         component_schemas: &IndexMap<String, aide::openapi::SchemaObject>,
         include_mode: IncludeMode,
         excluded_operations: &BTreeSet<String>,
+        specified_operations: &BTreeSet<String>,
     ) -> Option<(Vec<String>, Self)> {
         let Some(op_id) = op.operation_id else {
             // ignore operations without an operationId
@@ -206,6 +215,7 @@ impl Operation {
             IncludeMode::OnlyPublic => !x_hidden,
             IncludeMode::PublicAndHidden => true,
             IncludeMode::OnlyHidden => x_hidden,
+            IncludeMode::OnlySpecified => specified_operations.contains(&op_id),
         };
         if !include_operation || excluded_operations.contains(&op_id) {
             return None;
