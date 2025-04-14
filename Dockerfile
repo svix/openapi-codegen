@@ -39,7 +39,7 @@ FROM alpine:3.21 AS csharpier-builder
 ARG DOTNET_PLATFORM="linux-musl-amd64"
 WORKDIR /app
 # csharpier defines .net9 in a file called global.json, so we need it on the system even if we don't use it
-RUN apk add git dotnet9-sdk dotnet8-sdk
+RUN apk add --no-cache git dotnet9-sdk dotnet8-sdk
 RUN git clone https://github.com/belav/csharpier /app && \
     git checkout f359fbda3dce613f8c69e4680d65727eefee9d16
 # we build using .net8
