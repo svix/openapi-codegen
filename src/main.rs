@@ -31,6 +31,15 @@ struct CliArgs {
     #[arg(global = true, short, long = "exclude-op-id")]
     excluded_operations: Vec<String>,
 
+    /// Only include specified operations
+    ///
+    /// This option only works with `--include-mode=only-specified`.
+    ///
+    /// Use this option, to run the codegen with a limited set of operations.
+    /// Op webhook models will be excluded from the generation
+    #[arg(global = true, long = "include-op-id")]
+    specified_operations: Vec<String>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -72,6 +81,8 @@ enum IncludeMode {
     PublicAndHidden,
     /// Only operations marked with `x-hidden`
     OnlyHidden,
+    /// Only operations that were specified in `--include-op-id`
+    OnlySpecified,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -84,6 +95,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
+    let specified_operations = BTreeSet::from_iter(args.specified_operations);
 
     let spec = fs::read_to_string(input_file)?;
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
@@ -96,9 +108,10 @@ fn main() -> anyhow::Result<()> {
         &components.schemas,
         args.include_mode,
         excluded_operations,
+        specified_operations,
     )
     .unwrap();
-    let types = api.types(&mut components.schemas, webhooks);
+    let types = api.types(&mut components.schemas, webhooks, args.include_mode);
 
     match args.command {
         Command::Generate {
