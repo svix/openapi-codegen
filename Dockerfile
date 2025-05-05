@@ -38,16 +38,16 @@ RUN cargo build --release
 FROM alpine:3.21 AS csharpier-builder
 ARG DOTNET_PLATFORM="linux-musl-amd64"
 WORKDIR /app
-# csharpier defines .net9 in a file called global.json, so we need it on the system even if we don't use it
-RUN apk add --no-cache git dotnet9-sdk dotnet8-sdk
+RUN apk add --no-cache git dotnet9-sdk
+
+# this is csharpier v1.0.1
 RUN git clone https://github.com/belav/csharpier /app && \
-    git checkout f359fbda3dce613f8c69e4680d65727eefee9d16
-# we build using .net8
-RUN dotnet publish --framework net8.0 -o output \
+    git checkout 488679295cf50e84e6cac15f308d7e5a362c245c
+
+RUN dotnet publish --framework net9.0 -o output \
     -r ${DOTNET_PLATFORM} /p:StripSymbols=true \
     /p:InvariantGlobalization=true /p:SelfContained=true \
     /p:PublishSingleFile=true Src/CSharpier.Cli
-
 
 # build goimports
 FROM docker.io/golang:1.24-alpine AS goimports-builder
@@ -106,7 +106,7 @@ COPY --from=goimports-builder /usr/local/go/ /usr/local/go/
 COPY --from=goimports-builder /go/bin/goimports /usr/bin
 
 # C#
-COPY --from=csharpier-builder /app/output/dotnet-csharpier /usr/bin/
+COPY --from=csharpier-builder /app/output/CSharpier /usr/bin/csharpier
 
 # Rust
 # All of this craziness reduces the image size by about 600Mb
