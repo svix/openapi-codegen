@@ -22,16 +22,17 @@ COPY src /app/src
 
 RUN cargo build --release --bin openapi-codegen
 
-# build rubyfmt
-FROM docker.io/rust:1.85 AS rubyfmt-builder
-WORKDIR /app
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ruby bison && \
-    apt-get clean
-RUN git clone https://github.com/fables-tales/rubyfmt.git \
-    --recurse-submodules --shallow-submodules /app && \
-    git checkout 71cbb4adc53d3d8b36a6f1b3dcff87865d0204b8
-RUN cargo build --release
+
+# download rubyfmt
+FROM alpine:3.21 AS rubyfmt-downloader
+ARG RUBYFMT_DL_LINK="https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-x86_64.tar.gz"
+ARG RUBYFMT_SHA256="40f734a83edcc5f03f789606293af9ea622ea2a4fc3091c551b7c1f817087dcd"
+RUN apk add --no-cache curl binutils
+RUN echo "${RUBYFMT_SHA256} rubyfmt.tar.gz" > rubyfmt.tar.gz.sha256 && \
+    curl -fsSL --output rubyfmt.tar.gz "${RUBYFMT_DL_LINK}" && \
+    sha256sum rubyfmt.tar.gz.sha256 -c && \
+    tar xfv rubyfmt.tar.gz && \
+    strip tmp/releases/v0.11.67-0-Linux/rubyfmt
 
 
 # build csharpier
@@ -66,7 +67,6 @@ FROM alpine:3.21
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/.cargo/bin"
 RUN apk add --no-cache openjdk17-jre-headless curl gcompat libgcc ruff libstdc++
 
-
 # Kotlin
 RUN echo "5e7eb28a0b2006d1cefbc9213bfc73a8191ec2f85d639ec4fc4ec0cd04212e82 ktfmt-0.54-jar-with-dependencies.jar" > ktfmt-0.54-jar-with-dependencies.jar.sha256  && \
     curl -fsSL --output ktfmt-0.54-jar-with-dependencies.jar "https://github.com/facebook/ktfmt/releases/download/v0.54/ktfmt-0.54-jar-with-dependencies.jar"  && \
@@ -90,8 +90,8 @@ RUN echo "25157797a0a972c2290b5bc71530c4f7ad646458025e3484412a6e5a9b8c9aa6 googl
 
 # Javascript
 ARG BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl"
-ARG BIOME_HASH="02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82"
-RUN echo "${BIOME_HASH} biome" > biome.sha256 && \
+ARG BIOME_SHA256="02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82"
+RUN echo "${BIOME_SHA256} biome" > biome.sha256 && \
     curl -fsSL --output biome "${BIOME_DL_LINK}" && \
     sha256sum biome.sha256 -c && \
     rm biome.sha256 && \
@@ -99,7 +99,7 @@ RUN echo "${BIOME_HASH} biome" > biome.sha256 && \
     chmod +x /usr/bin/biome
 
 # Ruby
-COPY --from=rubyfmt-builder /app/target/release/rubyfmt-main /usr/bin/rubyfmt
+COPY --from=rubyfmt-downloader /tmp/releases/v0.11.67-0-Linux/rubyfmt /usr/bin/rubyfmt
 
 # Go
 COPY --from=goimports-builder /usr/local/go/ /usr/local/go/
