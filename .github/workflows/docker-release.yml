@@ -22,14 +22,18 @@ jobs:
               DOTNET_PLATFORM=linux-musl-amd64
               RUST_TARGET=x86_64-unknown-linux-musl
               BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl
-              BIOME_HASH=02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82
+              BIOME_SHA256=02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82
+              RUBYFMT_DL_LINK="https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-x86_64.tar.gz"
+              RUBYFMT_SHA256="40f734a83edcc5f03f789606293af9ea622ea2a4fc3091c551b7c1f817087dcd"
           - runner: ubuntu-24.04-arm
             name: arm64
             build-args: |
               DOTNET_PLATFORM=linux-musl-arm64
               RUST_TARGET=aarch64-unknown-linux-musl
               BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-arm64-musl
-              BIOME_HASH=d34937f7b5a6f816af289e972bfd49827921ed43f44547f78180f3e4f539cc41
+              BIOME_SHA256=d34937f7b5a6f816af289e972bfd49827921ed43f44547f78180f3e4f539cc41
+              RUBYFMT_DL_LINK="https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-aarch64.tar.gz"
+              RUBYFMT_SHA256="805fec1bf5400513058d8ec2d5cde0b497182b80828957ef0239190aa1f01092"              
     name: Build and publish ${{ matrix.platform.name }} docker image
     if: github.ref == 'refs/heads/main'
     runs-on: "${{ matrix.platform.runner }}"
