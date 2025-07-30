@@ -15,9 +15,12 @@ use types::Types;
 mod api;
 mod generator;
 mod postprocessing;
+mod preprocess_spec;
 mod template;
 mod types;
 mod util;
+
+use crate::{preprocess_spec::add_ee_prefix, util::prefix_op_id};
 
 use self::{api::Api, generator::generate};
 
@@ -39,6 +42,10 @@ struct CliArgs {
     /// Op webhook models will be excluded from the generation
     #[arg(global = true, long = "include-op-id")]
     specified_operations: Vec<String>,
+
+    /// Add a `ee_` prefix to operation names and model names
+    #[arg(global = true, long = "add-ee-prefix", action = clap::ArgAction::SetTrue, default_value_t = false)]
+    add_ee_prefix: bool,
 
     #[command(subcommand)]
     command: Command,
@@ -94,11 +101,16 @@ fn main() -> anyhow::Result<()> {
         Command::Debug { input_file } => input_file,
     };
 
-    let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
-    let specified_operations = BTreeSet::from_iter(args.specified_operations);
+    let excluded_operations =
+        add_prefix_to_cli_op_ids(args.excluded_operations, args.add_ee_prefix);
+    let specified_operations =
+        add_prefix_to_cli_op_ids(args.specified_operations, args.add_ee_prefix);
 
     let spec = fs::read_to_string(input_file)?;
-    let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
+    let mut spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
+    if args.add_ee_prefix {
+        add_ee_prefix(&mut spec);
+    }
 
     let webhooks = get_webhooks(&spec);
     let mut components = spec.components.unwrap_or_default();
@@ -196,4 +208,12 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
         }
     }
     referenced_components.into_iter().collect::<Vec<String>>()
+}
+
+fn add_prefix_to_cli_op_ids(op_ids: Vec<String>, add_ee_prefix: bool) -> BTreeSet<String> {
+    if add_ee_prefix {
+        op_ids.iter().map(|op_id| prefix_op_id(op_id)).collect()
+    } else {
+        op_ids.into_iter().collect()
+    }
 }

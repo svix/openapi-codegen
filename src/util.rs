@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use itertools::Itertools as _;
 use serde::ser::{Serialize, SerializeSeq as _, Serializer};
 
 pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {
@@ -27,4 +28,19 @@ where
         seq.serialize_element(item)?;
     }
     seq.end()
+}
+
+pub(crate) fn prefix_op_id(op_id: &str) -> String {
+    let split = op_id.split(".");
+
+    let prefixed_op_id = split
+        .map(|p| {
+            if p != "v1" {
+                format!("ee-{p}")
+            } else {
+                p.to_string()
+            }
+        })
+        .join(".");
+    prefixed_op_id
 }
