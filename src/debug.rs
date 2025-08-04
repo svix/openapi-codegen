@@ -1,27 +1,10 @@
-use std::collections::BTreeMap;
-
 use fs_err as fs;
-use serde::Serialize;
 
-use crate::{
-    api::{Api, Resource},
-    types::Types,
-    util::serialize_btree_map_values,
-};
+use crate::api::Api;
 
-#[derive(Serialize)]
-struct ApiAndTypes {
-    #[serde(serialize_with = "serialize_btree_map_values")]
-    pub resources: BTreeMap<String, Resource>,
-    pub types: Types,
-}
-
-pub(crate) fn write_api_and_types(api: Api, types: Types) -> anyhow::Result<()> {
-    let Api { resources } = api;
-
-    let api_and_types = ApiAndTypes { resources, types };
+pub(crate) fn write_api_and_types(api: &Api) -> anyhow::Result<()> {
     let serialized = ron::ser::to_string_pretty(
-        &api_and_types,
+        api,
         ron::ser::PrettyConfig::new().extensions(ron::extensions::Extensions::IMPLICIT_SOME),
     )?;
     fs::write("debug.ron", serialized)?;
