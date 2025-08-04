@@ -4,73 +4,58 @@ use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
-use serde::Serialize;
 
-use crate::{
-    types::FieldType,
-    util::{get_schema_name, serialize_btree_map_values},
-    IncludeMode,
-};
+use super::types::FieldType;
+use crate::{util::get_schema_name, IncludeMode};
 
-/// The API we generate a client for.
+/// The API operations of the API client we generate.
 ///
 /// Intermediate representation of `paths` from the spec.
-#[derive(Debug, Serialize)]
-pub(crate) struct Api {
-    #[serde(serialize_with = "serialize_btree_map_values")]
-    pub resources: BTreeMap<String, Resource>,
-}
+pub(crate) type Resources = BTreeMap<String, Resource>;
 
-impl Api {
-    pub(crate) fn new(
-        paths: openapi::Paths,
-        component_schemas: &IndexMap<String, openapi::SchemaObject>,
-        include_mode: IncludeMode,
-        excluded_operations: BTreeSet<String>,
-        specified_operations: BTreeSet<String>,
-    ) -> anyhow::Result<Self> {
-        let mut resources = BTreeMap::new();
+pub(crate) fn from_openapi(
+    paths: openapi::Paths,
+    component_schemas: &IndexMap<String, openapi::SchemaObject>,
+    include_mode: IncludeMode,
+    excluded_operations: BTreeSet<String>,
+    specified_operations: BTreeSet<String>,
+) -> anyhow::Result<Resources> {
+    let mut resources = BTreeMap::new();
 
-        for (path, pi) in paths {
-            let path_item = pi
-                .into_item()
-                .context("$ref paths are currently not supported")?;
+    for (path, pi) in paths {
+        let path_item = pi
+            .into_item()
+            .context("$ref paths are currently not supported")?;
 
-            if !path_item.parameters.is_empty() {
-                tracing::info!("parameters at the path item level are not currently supported");
-                continue;
-            }
-
-            for (method, op) in path_item {
-                if let Some((res_path, op)) = Operation::from_openapi(
-                    &path,
-                    method,
-                    op,
-                    component_schemas,
-                    include_mode,
-                    &excluded_operations,
-                    &specified_operations,
-                ) {
-                    let resource = get_or_insert_resource(&mut resources, res_path);
-                    resource.operations.push(op);
-                }
-            }
+        if !path_item.parameters.is_empty() {
+            tracing::info!("parameters at the path item level are not currently supported");
+            continue;
         }
 
-        Ok(Self { resources })
+        for (method, op) in path_item {
+            if let Some((res_path, op)) = Operation::from_openapi(
+                &path,
+                method,
+                op,
+                component_schemas,
+                include_mode,
+                &excluded_operations,
+                &specified_operations,
+            ) {
+                let resource = get_or_insert_resource(&mut resources, res_path);
+                resource.operations.push(op);
+            }
+        }
     }
 
-    pub(crate) fn referenced_components(&self) -> impl Iterator<Item = &str> {
-        self.resources
-            .values()
-            .flat_map(Resource::referenced_components)
-    }
+    Ok(resources)
 }
 
-fn get_or_insert_resource(
-    resources: &mut BTreeMap<String, Resource>,
-    path: Vec<String>,
-) -> &mut Resource {
+pub(crate) fn referenced_components(resources: &Resources) -> impl Iterator<Item = &str> {
+    resources.values().flat_map(Resource::referenced_components)
+}
+
+fn get_or_insert_resource(resources: &mut Resources, path: Vec<String>) -> &mut Resource {
     let mut path_iter = path.into_iter();
     let mut name = path_iter.next().expect("path must be non-empty");
     let mut r = resources
@@ -95,7 +80,7 @@ fn get_or_insert_resource(
 pub(crate) struct Resource {
     pub name: String,
     pub operations: Vec<Operation>,
-    pub subresources: BTreeMap<String, Resource>,
+    pub subresources: Resources,
 }
 
 impl Resource {

@@ -12,7 +12,6 @@ mod debug;
 mod generator;
 mod postprocessing;
 mod template;
-mod types;
 mod util;
 
 use self::{api::Api, generator::generate};
@@ -97,21 +96,14 @@ fn main() -> anyhow::Result<()> {
     let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
 
     let webhooks = get_webhooks(&spec);
-    let mut components = spec.components.unwrap_or_default();
-    let paths = spec.paths.context("found no endpoints in input spec")?;
     let api = Api::new(
-        paths,
-        &components.schemas,
+        spec.paths.context("found no endpoints in input spec")?,
+        &mut spec.components.unwrap_or_default(),
+        &webhooks,
         args.include_mode,
         excluded_operations,
         specified_operations,
     )?;
-    let types = types::from_referenced_components(
-        &api,
-        &mut components.schemas,
-        webhooks,
-        args.include_mode,
-    );
 
     match args.command {
         Command::Generate {
@@ -122,7 +114,7 @@ fn main() -> anyhow::Result<()> {
         } => {
             match &output_dir {
                 Some(path) => {
-                    generate(api, types, template.into(), path, no_postprocess)?;
+                    generate(api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
                 }
                 None => {
@@ -147,7 +139,7 @@ fn main() -> anyhow::Result<()> {
                         .try_into()
                         .context("non-UTF8 tempdir path")?;
 
-                    generate(api, types, template.into(), path, no_postprocess)?;
+                    generate(api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
 
                     // Persist the TempDir if everything was successful
@@ -156,7 +148,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::Debug { .. } => {
-            debug::write_api_and_types(api, types)?;
+            debug::write_api_and_types(&api)?;
         }
     }
 

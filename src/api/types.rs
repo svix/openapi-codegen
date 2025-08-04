@@ -12,17 +12,18 @@ use schemars::schema::{
 };
 use serde::Serialize;
 
-use crate::{api::Api, util::get_schema_name, IncludeMode};
+use super::resources::{self, Resources};
+use crate::{util::get_schema_name, IncludeMode};
 
-/// Named types referenced by the [`Api`].
+/// Named types referenced by API operations.
 ///
 /// Intermediate representation of (some) `components` from the spec.
 pub(crate) type Types = BTreeMap<String, Type>;
 
 pub(crate) fn from_referenced_components(
-    api: &Api,
+    res: &Resources,
     schemas: &mut IndexMap<String, openapi::SchemaObject>,
-    webhooks: Vec<String>,
+    webhooks: &[String],
     include_mode: IncludeMode,
 ) -> Types {
     let mut referenced_components: Vec<&str> = match include_mode {
@@ -31,7 +32,7 @@ pub(crate) fn from_referenced_components(
         }
         IncludeMode::OnlySpecified => vec![],
     };
-    referenced_components.extend(api.referenced_components());
+    referenced_components.extend(resources::referenced_components(res));
 
     let mut types = BTreeMap::new();
     let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {

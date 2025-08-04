@@ -11,7 +11,6 @@ use crate::{
     api::{Api, Resource},
     postprocessing::Postprocessor,
     template,
-    types::Types,
 };
 
 #[derive(Default, Deserialize)]
@@ -26,7 +25,6 @@ enum TemplateKind {
 
 pub(crate) fn generate(
     api: Api,
-    types: Types,
     tpl_name: String,
     output_dir: &Utf8Path,
     no_postprocess: bool,
@@ -78,8 +76,8 @@ pub(crate) fn generate(
     match tpl_kind {
         TemplateKind::OperationOptions => generator.generate_api_resources_options(api)?,
         TemplateKind::ApiResource => generator.generate_api_resources(api)?,
-        TemplateKind::Type => generator.generate_types(types, output_dir)?,
-        TemplateKind::Summary => generator.generate_summary(types, api)?,
+        TemplateKind::Type => generator.generate_types(api, output_dir)?,
+        TemplateKind::Summary => generator.generate_summary(api)?,
     }
 
     if !no_postprocess {
@@ -143,9 +141,9 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_types(self, types: Types, output_dir: &Utf8Path) -> anyhow::Result<()> {
+    fn generate_types(self, api: Api, output_dir: &Utf8Path) -> anyhow::Result<()> {
         let output_dir = output_dir.as_str();
-        for (name, ty) in types {
+        for (name, ty) in api.types {
             let referenced_components = ty.referenced_components();
             self.render_tpl(
                 Some(&name),
@@ -156,9 +154,7 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_summary(&self, types: Types, api: Api) -> anyhow::Result<()> {
-        let Api { resources } = api;
-        let api = context! { resources, types };
+    fn generate_summary(&self, api: Api) -> anyhow::Result<()> {
         self.render_tpl(None, context! { api })
     }
 
