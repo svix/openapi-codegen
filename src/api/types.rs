@@ -76,7 +76,7 @@ pub(crate) fn from_referenced_components(
     types
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct Type {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -156,7 +156,7 @@ fn fields_referenced_schemas(fields: &[Field]) -> BTreeSet<&str> {
         .collect()
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum TypeData {
     Struct {
@@ -372,7 +372,7 @@ impl TypeData {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(tag = "repr", rename_all = "snake_case")]
 pub(crate) enum StructEnumRepr {
     /// <https://serde.rs/enum-representations.html#adjacently-tagged>
@@ -400,7 +400,7 @@ impl StructEnumRepr {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct Field {
     name: String,
     r#type: FieldType,
@@ -439,7 +439,7 @@ impl Field {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     name: String,
