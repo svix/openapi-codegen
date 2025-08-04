@@ -162,11 +162,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::Debug { .. } => {
-            let serialized = ron::ser::to_string_pretty(
-                &api,
-                ron::ser::PrettyConfig::new()
-                    .extensions(ron::extensions::Extensions::IMPLICIT_SOME),
-            )?;
+            let serialized = ron::ser::to_string_pretty(&api, Default::default())?;
             fs::write("debug.ron", serialized)?;
         }
     }
