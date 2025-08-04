@@ -15,7 +15,7 @@ mod template;
 mod types;
 mod util;
 
-use self::{api::Api, debug::write_debug_files, generator::generate};
+use self::{api::Api, generator::generate};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -152,7 +152,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::Debug { .. } => {
-            write_debug_files(&api, &types)?;
+            debug::write_api_and_types(api, types)?;
         }
     }
 
