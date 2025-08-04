@@ -302,7 +302,7 @@ impl TypeData {
                 let mut name = None;
 
                 fields.retain_mut(|f| match &f.r#type {
-                    FieldType::StringConst(value) => {
+                    FieldType::StringConst { value } => {
                         if name.is_some() {
                             // would be nice to be able to bail, but can't from retain_mut
                             tracing::error!("found two names for one enum variant");
@@ -347,7 +347,7 @@ impl TypeData {
                         ensure!(f.required);
 
                         match f.r#type {
-                            FieldType::SchemaRef(r) => Ok(r),
+                            FieldType::SchemaRef { name } => Ok(name),
                             _ => bail!("unsupported: non-$ref variant content"),
                         }
                     })
@@ -468,9 +468,13 @@ pub(crate) enum FieldType {
     /// A JSON object with arbitrary field values.
     JsonObject,
     /// A regular old list.
-    List(Arc<FieldType>),
+    List {
+        inner: Arc<FieldType>,
+    },
     /// List with unique items.
-    Set(Arc<FieldType>),
+    Set {
+        inner: Arc<FieldType>,
+    },
     /// A map with a given value type.
     ///
     /// The key type is always `String` in JSON schemas.
@@ -478,10 +482,14 @@ pub(crate) enum FieldType {
         value_ty: Arc<FieldType>,
     },
     /// The name of another schema that defines this type.
-    SchemaRef(String),
+    SchemaRef {
+        name: String,
+    },
 
     /// A string constant, used as an enum discriminator value.
-    StringConst(String),
+    StringConst {
+        value: String,
+    },
 }
 
 impl FieldType {
@@ -518,19 +526,19 @@ impl FieldType {
                     // String consts are the only const / enum values we support, for now.
                     // Early return so we don't hit the checks for these two below.
                     if let Some(value) = obj.const_value {
-                        let serde_json::Value::String(s) = value else {
+                        let serde_json::Value::String(value) = value else {
                             bail!("unsupported: non-string constant as field type");
                         };
-                        return Ok(Self::StringConst(s));
+                        return Ok(Self::StringConst { value });
                     }
                     if let Some(values) = obj.enum_values {
                         let Ok([value]): Result<[_; 1], _> = values.try_into() else {
                             bail!("unsupported: enum as field type");
                         };
-                        let serde_json::Value::String(s) = value else {
+                        let serde_json::Value::String(value) = value else {
                             bail!("unsupported: non-string constant as field type");
                         };
-                        return Ok(Self::StringConst(s));
+                        return Ok(Self::StringConst { value });
                     }
 
                     match obj.format.as_deref() {
@@ -551,9 +559,9 @@ impl FieldType {
                     };
                     let inner = Arc::new(Self::from_schema(*inner)?);
                     if array.unique_items == Some(true) {
-                        Self::Set(inner)
+                        Self::Set { inner }
                     } else {
-                        Self::List(inner)
+                        Self::List { inner }
                     }
                 }
                 InstanceType::Object => {
@@ -595,7 +603,7 @@ impl FieldType {
                 bail!("unsupported multi-typed parameter: `{types:?}`")
             }
             None => match get_schema_name(obj.reference.as_deref()) {
-                Some(name) => Self::SchemaRef(name),
+                Some(name) => Self::SchemaRef { name },
                 None => bail!("unsupported type-less parameter"),
             },
         };
@@ -622,11 +630,11 @@ impl FieldType {
             Self::Map { value_ty } => {
                 format!("Dictionary<string, {}>", value_ty.to_csharp_typename()).into()
             }
-            Self::List(field_type) | Self::Set(field_type) => {
-                format!("List<{}>", field_type.to_csharp_typename()).into()
+            Self::List { inner } | Self::Set { inner } => {
+                format!("List<{}>", inner.to_csharp_typename()).into()
             }
-            Self::SchemaRef(name) => filter_schema_ref(name, "Object"),
-            Self::StringConst(_) => "string".into(),
+            Self::SchemaRef { name } => filter_schema_ref(name, "Object"),
+            Self::StringConst { .. } => "string".into(),
         }
     }
 
@@ -642,11 +650,11 @@ impl FieldType {
             Self::DateTime => "time.Time".into(),
             Self::JsonObject => "map[string]any".into(),
             Self::Map { value_ty } => format!("map[string]{}", value_ty.to_go_typename()).into(),
-            Self::List(field_type) | Self::Set(field_type) => {
-                format!("[]{}", field_type.to_go_typename()).into()
+            Self::List { inner } | Self::Set { inner } => {
+                format!("[]{}", inner.to_go_typename()).into()
             }
-            Self::SchemaRef(name) => filter_schema_ref(name, "map[string]any"),
-            Self::StringConst(_) => "string".into(),
+            Self::SchemaRef { name } => filter_schema_ref(name, "map[string]any"),
+            Self::StringConst { .. } => "string".into(),
         }
     }
 
@@ -664,10 +672,10 @@ impl FieldType {
                 format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
             }
             Self::JsonObject => "Map<String,Any>".into(),
-            Self::List(field_type) => format!("List<{}>", field_type.to_kotlin_typename()).into(),
-            Self::Set(field_type) => format!("Set<{}>", field_type.to_kotlin_typename()).into(),
-            Self::SchemaRef(name) => filter_schema_ref(name, "Map<String,Any>"),
-            Self::StringConst(_) => "String".into(),
+            Self::List { inner } => format!("List<{}>", inner.to_kotlin_typename()).into(),
+            Self::Set { inner } => format!("Set<{}>", inner.to_kotlin_typename()).into(),
+            Self::SchemaRef { name } => filter_schema_ref(name, "Map<String,Any>"),
+            Self::StringConst { .. } => "String".into(),
         }
     }
 
@@ -680,14 +688,14 @@ impl FieldType {
             Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
-            Self::List(field_type) | Self::Set(field_type) => {
-                format!("{}[]", field_type.to_js_typename()).into()
+            Self::List { inner } | Self::Set { inner } => {
+                format!("{}[]", inner.to_js_typename()).into()
             }
             Self::Map { value_ty } => {
                 format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
-            Self::SchemaRef(name) => filter_schema_ref(name, "any"),
-            Self::StringConst(_) => "string".into(),
+            Self::SchemaRef { name } => filter_schema_ref(name, "any"),
+            Self::StringConst { .. } => "string".into(),
         }
     }
 
@@ -705,32 +713,34 @@ impl FieldType {
             Self::DateTime => "DateTime<Utc>".into(),
             Self::JsonObject => "serde_json::Value".into(),
             // FIXME: Treat set differently? (BTreeSet)
-            Self::List(field_type) | Self::Set(field_type) => {
-                format!("Vec<{}>", field_type.to_rust_typename()).into()
+            Self::List { inner } | Self::Set { inner } => {
+                format!("Vec<{}>", inner.to_rust_typename()).into()
             }
             Self::Map { value_ty } => format!(
                 "std::collections::HashMap<String, {}>",
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef(name) => filter_schema_ref(name, "serde_json::Value"),
-            Self::StringConst(_) => "String".into()
+            Self::SchemaRef { name } => filter_schema_ref(name, "serde_json::Value"),
+            Self::StringConst { .. } => "String".into()
         }
     }
 
     pub(crate) fn referenced_schema(&self) -> Option<&str> {
         match self {
-            Self::SchemaRef(v) => {
+            Self::SchemaRef { name } => {
                 // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
                 // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
                 // we should change this server side, but for now I am changing it here
-                if v == "Data" {
+                if name == "Data" {
                     None
                 } else {
-                    Some(v)
+                    Some(name)
                 }
             }
-            Self::List(ty) | Self::Set(ty) | Self::Map { value_ty: ty } => ty.referenced_schema(),
+            Self::List { inner: ty } | Self::Set { inner: ty } | Self::Map { value_ty: ty } => {
+                ty.referenced_schema()
+            }
             _ => None,
         }
     }
@@ -741,16 +751,16 @@ impl FieldType {
             Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => "int".into(),
             Self::String => "str".into(),
             Self::DateTime => "datetime".into(),
-            Self::SchemaRef(name) => filter_schema_ref(name, "t.Dict[str, t.Any]"),
+            Self::SchemaRef { name } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
-            Self::Set(field_type) | Self::List(field_type) => {
-                format!("t.List[{}]", field_type.to_python_typename()).into()
+            Self::Set { inner } | Self::List { inner } => {
+                format!("t.List[{}]", inner.to_python_typename()).into()
             }
             Self::Map { value_ty } => {
                 format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
             }
-            Self::StringConst(_) => "str".into(),
+            Self::StringConst { .. } => "str".into(),
         }
     }
 
@@ -765,23 +775,23 @@ impl FieldType {
             FieldType::DateTime => "OffsetDateTime".into(),
             FieldType::Uri => "URI".into(),
             FieldType::JsonObject => "Object".into(),
-            FieldType::List(field_type) => {
-                format!("List<{}>", field_type.to_java_typename()).into()
+            FieldType::List { inner } => format!("List<{}>", inner.to_java_typename()).into(),
+            FieldType::Set { inner: field_type } => {
+                format!("Set<{}>", field_type.to_java_typename()).into()
             }
-            FieldType::Set(field_type) => format!("Set<{}>", field_type.to_java_typename()).into(),
             FieldType::Map { value_ty } => {
                 format!("Map<String,{}>", value_ty.to_java_typename()).into()
             }
-            FieldType::SchemaRef(name) => filter_schema_ref(name, "Object"),
+            FieldType::SchemaRef { name } => filter_schema_ref(name, "Object"),
             // backwards compat
-            FieldType::StringConst(_) => "TypeEnum".into(),
+            FieldType::StringConst { .. } => "TypeEnum".into(),
         }
     }
 
     fn to_ruby_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::SchemaRef(name) => name.clone().into(),
-            FieldType::StringConst(_) => {
+            FieldType::SchemaRef { name } => name.clone().into(),
+            FieldType::StringConst { .. } => {
                 unreachable!("FieldType::const should never be exposed to template code")
             }
             _ => panic!("types? in ruby?!?!, not on my watch!"),
@@ -840,15 +850,15 @@ impl minijinja::value::Object for FieldType {
             }
             "is_schema_ref" => {
                 ensure_no_args(args, "is_schema_ref")?;
-                Ok(matches!(**self, Self::SchemaRef(_)).into())
+                Ok(matches!(**self, Self::SchemaRef { .. }).into())
             }
             "is_list" => {
                 ensure_no_args(args, "is_list")?;
-                Ok(matches!(**self, Self::List(_)).into())
+                Ok(matches!(**self, Self::List { .. }).into())
             }
             "is_set" => {
                 ensure_no_args(args, "is_set")?;
-                Ok(matches!(**self, Self::Set(_)).into())
+                Ok(matches!(**self, Self::Set { .. }).into())
             }
             "is_map" => {
                 ensure_no_args(args, "is_map")?;
@@ -872,8 +882,8 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "inner_type")?;
 
                 let ty = match &**self {
-                    FieldType::List(field_type) | FieldType::Set(field_type) => {
-                        Some(minijinja::Value::from_dyn_object(field_type.clone()))
+                    FieldType::List { inner } | FieldType::Set { inner } => {
+                        Some(minijinja::Value::from_dyn_object(inner.clone()))
                     }
                     _ => None,
                 };
@@ -894,7 +904,9 @@ impl minijinja::value::Object for FieldType {
             "string_const_val" => {
                 ensure_no_args(args, "string_const_val")?;
                 let val = match &**self {
-                    Self::StringConst(val) => Some(minijinja::Value::from_safe_string(val.clone())),
+                    Self::StringConst { value } => {
+                        Some(minijinja::Value::from_safe_string(value.clone()))
+                    }
                     _ => None,
                 };
                 Ok(val.into())

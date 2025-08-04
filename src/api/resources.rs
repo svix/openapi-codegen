@@ -101,7 +101,7 @@ impl Resource {
 
         for operation in &self.operations {
             for param in &operation.query_params {
-                if let FieldType::SchemaRef(name) = &param.r#type {
+                if let FieldType::SchemaRef { name } = &param.r#type {
                     res.insert(name);
                 }
             }
