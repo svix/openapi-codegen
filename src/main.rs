@@ -1,25 +1,21 @@
-use std::{
-    collections::BTreeSet,
-    io::{self, BufWriter, Write as _},
-    path::PathBuf,
-};
+use std::{collections::BTreeSet, io, path::PathBuf};
 
 use aide::openapi::OpenApi;
 use anyhow::Context as _;
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
-use fs_err::{self as fs, File};
+use fs_err::{self as fs};
 use tempfile::TempDir;
-use types::Types;
 
 mod api;
+mod debug;
 mod generator;
 mod postprocessing;
 mod template;
 mod types;
 mod util;
 
-use self::{api::Api, generator::generate};
+use self::{api::Api, debug::write_debug_files, generator::generate};
 
 #[derive(Parser)]
 struct CliArgs {
@@ -159,16 +155,6 @@ fn main() -> anyhow::Result<()> {
             write_debug_files(&api, &types)?;
         }
     }
-
-    Ok(())
-}
-
-fn write_debug_files(api: &Api, types: &Types) -> anyhow::Result<()> {
-    let mut api_file = BufWriter::new(File::create("api.ron")?);
-    writeln!(api_file, "{api:#?}")?;
-
-    let mut types_file = BufWriter::new(File::create("types.ron")?);
-    writeln!(types_file, "{types:#?}")?;
 
     Ok(())
 }
