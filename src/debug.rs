@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::{
     api::{Api, Resource},
-    types::{Type, Types},
+    types::Types,
     util::serialize_btree_map_values,
 };
 
@@ -13,12 +13,11 @@ use crate::{
 struct ApiAndTypes {
     #[serde(serialize_with = "serialize_btree_map_values")]
     pub resources: BTreeMap<String, Resource>,
-    pub types: BTreeMap<String, Type>,
+    pub types: Types,
 }
 
 pub(crate) fn write_api_and_types(api: Api, types: Types) -> anyhow::Result<()> {
     let Api { resources } = api;
-    let Types(types) = types;
 
     let api_and_types = ApiAndTypes { resources, types };
     let serialized = ron::ser::to_string_pretty(

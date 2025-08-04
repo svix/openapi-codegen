@@ -7,7 +7,7 @@ use schemars::schema::{InstanceType, Schema};
 use serde::Serialize;
 
 use crate::{
-    types::{FieldType, Types},
+    types::{self, FieldType, Types},
     util::{get_schema_name, serialize_btree_map_values},
     IncludeMode,
 };
@@ -79,7 +79,7 @@ impl Api {
             IncludeMode::OnlySpecified => vec![],
         };
         referenced_components.extend(self.referenced_components());
-        Types::from_referenced_components(schemas, referenced_components.into_iter())
+        types::from_referenced_components(schemas, referenced_components.into_iter())
     }
 }
 
