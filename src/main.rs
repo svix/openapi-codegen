@@ -1,7 +1,11 @@
-use std::{collections::BTreeSet, io, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    io,
+    path::{Path, PathBuf},
+};
 
 use aide::openapi::OpenApi;
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs};
@@ -11,7 +15,6 @@ mod api;
 mod generator;
 mod postprocessing;
 mod template;
-mod util;
 
 use self::{api::Api, generator::generate};
 
@@ -91,18 +94,30 @@ fn main() -> anyhow::Result<()> {
     let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
     let specified_operations = BTreeSet::from_iter(args.specified_operations);
 
-    let spec = fs::read_to_string(input_file)?;
-    let spec: OpenApi = serde_json::from_str(&spec).context("failed to parse OpenAPI spec")?;
+    let input_file = Path::new(input_file);
+    let input_file_ext = input_file
+        .extension()
+        .context("input file must have a file extension")?;
+    let input_file_contents = fs::read_to_string(input_file)?;
 
-    let webhooks = get_webhooks(&spec);
-    let api = Api::new(
-        spec.paths.context("found no endpoints in input spec")?,
-        &mut spec.components.unwrap_or_default(),
-        &webhooks,
-        args.include_mode,
-        excluded_operations,
-        specified_operations,
-    )?;
+    let api = if input_file_ext == "json" {
+        let spec: OpenApi =
+            serde_json::from_str(&input_file_contents).context("failed to parse OpenAPI spec")?;
+
+        let webhooks = get_webhooks(&spec);
+        Api::new(
+            spec.paths.context("found no endpoints in input spec")?,
+            &mut spec.components.unwrap_or_default(),
+            &webhooks,
+            args.include_mode,
+            excluded_operations,
+            specified_operations,
+        )?
+    } else if input_file_ext == "ron" {
+        ron::from_str(&input_file_contents)?
+    } else {
+        bail!("input file extension must be .json or .ron");
+    };
 
     match args.command {
         Command::Generate {

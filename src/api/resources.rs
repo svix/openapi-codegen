@@ -4,9 +4,13 @@ use aide::openapi::{self, ReferenceOr};
 use anyhow::{bail, Context as _};
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
+use serde::{Deserialize, Serialize};
 
-use super::types::FieldType;
-use crate::{util::get_schema_name, IncludeMode};
+use super::{
+    get_schema_name,
+    types::{serialize_field_type, FieldType},
+};
+use crate::IncludeMode;
 
 /// The API operations of the API client we generate.
 ///
@@ -76,7 +80,7 @@ fn get_or_insert_resource(resources: &mut Resources, path: Vec<String>) -> &mut 
 }
 
 /// A named group of [`Operation`]s.
-#[derive(serde::Serialize)]
+#[derive(Deserialize, Serialize)]
 pub(crate) struct Resource {
     pub name: String,
     pub operations: Vec<Operation>,
@@ -118,7 +122,7 @@ impl Resource {
 }
 
 /// A named HTTP endpoint.
-#[derive(serde::Serialize)]
+#[derive(Deserialize, Serialize)]
 pub(crate) struct Operation {
     /// The operation ID from the spec.
     id: String,
@@ -464,17 +468,18 @@ fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<Str
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(Deserialize, Serialize)]
 struct HeaderParam {
     name: String,
     required: bool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Deserialize, Serialize)]
 struct QueryParam {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     required: bool,
+    #[serde(serialize_with = "serialize_field_type")]
     r#type: FieldType,
 }
