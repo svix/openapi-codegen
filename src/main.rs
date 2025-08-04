@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
                     println!("done! output written to {path}");
 
                     // Persist the TempDir if everything was successful
-                    _ = output_dir.into_path();
+                    _ = output_dir.keep();
                 }
             }
         }
