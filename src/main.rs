@@ -8,7 +8,6 @@ use fs_err::{self as fs};
 use tempfile::TempDir;
 
 mod api;
-mod debug;
 mod generator;
 mod postprocessing;
 mod template;
@@ -148,7 +147,12 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::Debug { .. } => {
-            debug::write_api_and_types(&api)?;
+            let serialized = ron::ser::to_string_pretty(
+                &api,
+                ron::ser::PrettyConfig::new()
+                    .extensions(ron::extensions::Extensions::IMPLICIT_SOME),
+            )?;
+            fs::write("debug.ron", serialized)?;
         }
     }
 
