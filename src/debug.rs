@@ -1,9 +1,6 @@
-use std::{
-    collections::BTreeMap,
-    io::{BufWriter, Write as _},
-};
+use std::collections::BTreeMap;
 
-use fs_err::File;
+use fs_err as fs;
 use serde::Serialize;
 
 use crate::{
@@ -12,7 +9,7 @@ use crate::{
     util::serialize_btree_map_values,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 struct ApiAndTypes {
     #[serde(serialize_with = "serialize_btree_map_values")]
     pub resources: BTreeMap<String, Resource>,
@@ -24,9 +21,11 @@ pub(crate) fn write_api_and_types(api: Api, types: Types) -> anyhow::Result<()> 
     let Types(types) = types;
 
     let api_and_types = ApiAndTypes { resources, types };
-
-    let mut output_file = BufWriter::new(File::create("debug.ron")?);
-    writeln!(output_file, "{api_and_types:#?}")?;
+    let serialized = ron::ser::to_string_pretty(
+        &api_and_types,
+        ron::ser::PrettyConfig::new().extensions(ron::extensions::Extensions::IMPLICIT_SOME),
+    )?;
+    fs::write("debug.ron", serialized)?;
 
     Ok(())
 }
