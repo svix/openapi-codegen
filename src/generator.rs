@@ -157,7 +157,9 @@ impl Generator<'_> {
     }
 
     fn generate_summary(&self, types: Types, api: Api) -> anyhow::Result<()> {
-        self.render_tpl(None, context! { types, api })
+        let Api { resources } = api;
+        let api = context! { resources, types };
+        self.render_tpl(None, context! { api })
     }
 
     fn render_tpl(&self, output_name: Option<&str>, ctx: minijinja::Value) -> anyhow::Result<()> {
