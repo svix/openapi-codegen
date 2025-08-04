@@ -12,17 +12,27 @@ use schemars::schema::{
 };
 use serde::Serialize;
 
-use crate::util::get_schema_name;
+use crate::{api::Api, util::get_schema_name, IncludeMode};
 
 /// Named types referenced by the [`Api`].
 ///
 /// Intermediate representation of (some) `components` from the spec.
 pub(crate) type Types = BTreeMap<String, Type>;
 
-pub(crate) fn from_referenced_components<'a>(
+pub(crate) fn from_referenced_components(
+    api: &Api,
     schemas: &mut IndexMap<String, openapi::SchemaObject>,
-    components: impl Iterator<Item = &'a str>,
+    webhooks: Vec<String>,
+    include_mode: IncludeMode,
 ) -> Types {
+    let mut referenced_components: Vec<&str> = match include_mode {
+        IncludeMode::OnlyPublic | IncludeMode::PublicAndHidden | IncludeMode::OnlyHidden => {
+            webhooks.iter().map(|s| &**s).collect()
+        }
+        IncludeMode::OnlySpecified => vec![],
+    };
+    referenced_components.extend(api.referenced_components());
+
     let mut types = BTreeMap::new();
     let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {
         let Some(s) = schemas.swap_remove(schema_name) else {
@@ -54,7 +64,10 @@ pub(crate) fn from_referenced_components<'a>(
         }
     };
 
-    let mut extra_components: BTreeSet<_> = components.map(ToOwned::to_owned).collect();
+    let mut extra_components: BTreeSet<_> = referenced_components
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect();
     while let Some(c) = extra_components.pop_first() {
         add_type(&c, &mut extra_components);
     }

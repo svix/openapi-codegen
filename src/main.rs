@@ -106,7 +106,12 @@ fn main() -> anyhow::Result<()> {
         excluded_operations,
         specified_operations,
     )?;
-    let types = api.types(&mut components.schemas, webhooks, args.include_mode);
+    let types = types::from_referenced_components(
+        &api,
+        &mut components.schemas,
+        webhooks,
+        args.include_mode,
+    );
 
     match args.command {
         Command::Generate {
