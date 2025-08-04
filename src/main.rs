@@ -105,8 +105,7 @@ fn main() -> anyhow::Result<()> {
         args.include_mode,
         excluded_operations,
         specified_operations,
-    )
-    .unwrap();
+    )?;
     let types = api.types(&mut components.schemas, webhooks, args.include_mode);
 
     match args.command {
