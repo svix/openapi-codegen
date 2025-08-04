@@ -76,7 +76,7 @@ fn get_or_insert_resource(resources: &mut Resources, path: Vec<String>) -> &mut 
 }
 
 /// A named group of [`Operation`]s.
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub(crate) struct Resource {
     pub name: String,
     pub operations: Vec<Operation>,
@@ -118,7 +118,7 @@ impl Resource {
 }
 
 /// A named HTTP endpoint.
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub(crate) struct Operation {
     /// The operation ID from the spec.
     id: String,
@@ -464,13 +464,13 @@ fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<Str
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 struct HeaderParam {
     name: String,
     required: bool,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 struct QueryParam {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

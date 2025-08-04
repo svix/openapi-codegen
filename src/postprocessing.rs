@@ -3,12 +3,13 @@ use std::{cell::RefCell, io, process::Command};
 use anyhow::bail;
 use camino::{Utf8Path, Utf8PathBuf};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Postprocessor {
     files_to_process: RefCell<Vec<Utf8PathBuf>>,
     postprocessor_lang: PostprocessorLanguage,
     output_dir: Utf8PathBuf,
 }
+
 impl Postprocessor {
     fn new(postprocessor_lang: PostprocessorLanguage, output_dir: Utf8PathBuf) -> Self {
         Self {
@@ -65,7 +66,8 @@ impl Postprocessor {
         v.push(path.to_path_buf());
     }
 }
-#[derive(Debug, Clone, Copy)]
+
+#[derive(Clone, Copy)]
 pub(crate) enum PostprocessorLanguage {
     Python,
     Rust,
