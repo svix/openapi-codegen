@@ -17,52 +17,49 @@ use crate::util::get_schema_name;
 /// Named types referenced by the [`Api`].
 ///
 /// Intermediate representation of (some) `components` from the spec.
-#[derive(Debug)]
-pub(crate) struct Types(pub BTreeMap<String, Type>);
+pub(crate) type Types = BTreeMap<String, Type>;
 
-impl Types {
-    pub(crate) fn from_referenced_components<'a>(
-        schemas: &mut IndexMap<String, openapi::SchemaObject>,
-        components: impl Iterator<Item = &'a str>,
-    ) -> Self {
-        let mut types = BTreeMap::new();
-        let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {
-            let Some(s) = schemas.swap_remove(schema_name) else {
-                tracing::warn!(schema_name, "schema not found");
-                return;
-            };
-
-            let obj = match s.json_schema {
-                Schema::Bool(_) => {
-                    tracing::warn!(schema_name, "found $ref'erenced bool schema, wat?!");
-                    return;
-                }
-                Schema::Object(o) => o,
-            };
-
-            match Type::from_schema(schema_name.to_owned(), obj) {
-                Ok(ty) => {
-                    extra_components.extend(
-                        ty.referenced_components()
-                            .into_iter()
-                            .filter(|&c| c != schema_name && !types.contains_key(c))
-                            .map(ToOwned::to_owned),
-                    );
-                    types.insert(schema_name.to_owned(), ty);
-                }
-                Err(e) => {
-                    tracing::warn!(schema_name, "unsupported schema: {e:#}");
-                }
-            }
+pub(crate) fn from_referenced_components<'a>(
+    schemas: &mut IndexMap<String, openapi::SchemaObject>,
+    components: impl Iterator<Item = &'a str>,
+) -> Types {
+    let mut types = BTreeMap::new();
+    let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {
+        let Some(s) = schemas.swap_remove(schema_name) else {
+            tracing::warn!(schema_name, "schema not found");
+            return;
         };
 
-        let mut extra_components: BTreeSet<_> = components.map(ToOwned::to_owned).collect();
-        while let Some(c) = extra_components.pop_first() {
-            add_type(&c, &mut extra_components);
-        }
+        let obj = match s.json_schema {
+            Schema::Bool(_) => {
+                tracing::warn!(schema_name, "found $ref'erenced bool schema, wat?!");
+                return;
+            }
+            Schema::Object(o) => o,
+        };
 
-        Self(types)
+        match Type::from_schema(schema_name.to_owned(), obj) {
+            Ok(ty) => {
+                extra_components.extend(
+                    ty.referenced_components()
+                        .into_iter()
+                        .filter(|&c| c != schema_name && !types.contains_key(c))
+                        .map(ToOwned::to_owned),
+                );
+                types.insert(schema_name.to_owned(), ty);
+            }
+            Err(e) => {
+                tracing::warn!(schema_name, "unsupported schema: {e:#}");
+            }
+        }
+    };
+
+    let mut extra_components: BTreeSet<_> = components.map(ToOwned::to_owned).collect();
+    while let Some(c) = extra_components.pop_first() {
+        add_type(&c, &mut extra_components);
     }
+
+    types
 }
 
 #[derive(Debug, Serialize)]

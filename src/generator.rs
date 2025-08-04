@@ -143,7 +143,7 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_types(self, Types(types): Types, output_dir: &Utf8Path) -> anyhow::Result<()> {
+    fn generate_types(self, types: Types, output_dir: &Utf8Path) -> anyhow::Result<()> {
         let output_dir = output_dir.as_str();
         for (name, ty) in types {
             let referenced_components = ty.referenced_components();
@@ -156,7 +156,7 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn generate_summary(&self, Types(types): Types, api: Api) -> anyhow::Result<()> {
+    fn generate_summary(&self, types: Types, api: Api) -> anyhow::Result<()> {
         self.render_tpl(None, context! { types, api })
     }
 
