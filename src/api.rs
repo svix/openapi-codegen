@@ -7,7 +7,7 @@ use schemars::schema::{InstanceType, Schema};
 use serde::Serialize;
 
 use crate::{
-    types::{self, FieldType, Types},
+    types::FieldType,
     util::{get_schema_name, serialize_btree_map_values},
     IncludeMode,
 };
@@ -60,26 +60,10 @@ impl Api {
         Ok(Self { resources })
     }
 
-    fn referenced_components(&self) -> impl Iterator<Item = &str> {
+    pub(crate) fn referenced_components(&self) -> impl Iterator<Item = &str> {
         self.resources
             .values()
             .flat_map(Resource::referenced_components)
-    }
-
-    pub(crate) fn types(
-        &self,
-        schemas: &mut IndexMap<String, openapi::SchemaObject>,
-        webhooks: Vec<String>,
-        include_mode: IncludeMode,
-    ) -> Types {
-        let mut referenced_components: Vec<&str> = match include_mode {
-            IncludeMode::OnlyPublic | IncludeMode::PublicAndHidden | IncludeMode::OnlyHidden => {
-                webhooks.iter().map(|s| &**s).collect()
-            }
-            IncludeMode::OnlySpecified => vec![],
-        };
-        referenced_components.extend(self.referenced_components());
-        types::from_referenced_components(schemas, referenced_components.into_iter())
     }
 }
 
