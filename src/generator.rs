@@ -1,10 +1,10 @@
 use std::io::BufWriter;
 
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use camino::Utf8Path;
 use fs_err::{self as fs, File};
 use heck::{ToLowerCamelCase, ToSnakeCase as _, ToUpperCamelCase as _};
-use minijinja::{context, Template};
+use minijinja::{Template, context};
 use serde::Deserialize;
 
 use crate::{

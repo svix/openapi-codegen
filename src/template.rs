@@ -6,7 +6,7 @@ use heck::{
     ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
 };
 use itertools::Itertools as _;
-use minijinja::{path_loader, value::Kwargs, State, Value};
+use minijinja::{State, Value, path_loader, value::Kwargs};
 
 pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
@@ -71,7 +71,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
                     return Err(minijinja::Error::new(
                         minijinja::ErrorKind::UndefinedError,
                         "unsupported doc comment style",
-                    ))
+                    ));
                 }
             };
 

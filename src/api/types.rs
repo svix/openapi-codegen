@@ -5,7 +5,7 @@ use std::{
 };
 
 use aide::openapi;
-use anyhow::{bail, ensure, Context as _};
+use anyhow::{Context as _, bail, ensure};
 use indexmap::IndexMap;
 use schemars::schema::{
     InstanceType, ObjectValidation, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
@@ -737,11 +737,7 @@ impl FieldType {
                 // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
                 // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
                 // we should change this server side, but for now I am changing it here
-                if name == "Data" {
-                    None
-                } else {
-                    Some(name)
-                }
+                if name == "Data" { None } else { Some(name) }
             }
             Self::List { inner: ty } | Self::Set { inner: ty } | Self::Map { value_ty: ty } => {
                 ty.referenced_schema()

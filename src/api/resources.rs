@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aide::openapi::{self, ReferenceOr};
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 use serde::{Deserialize, Serialize};
 
 use super::{
     get_schema_name,
-    types::{serialize_field_type, FieldType},
+    types::{FieldType, serialize_field_type},
 };
 use crate::IncludeMode;
 

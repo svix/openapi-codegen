@@ -5,7 +5,7 @@ use std::{
 };
 
 use aide::openapi::OpenApi;
-use anyhow::{bail, Context as _};
+use anyhow::{Context as _, bail};
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs};
@@ -185,10 +185,9 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
             for method in req.as_object().unwrap_or(&empty_obj).values() {
                 if let Some(schema_ref) =
                     method["requestBody"]["content"]["application/json"]["schema"]["$ref"].as_str()
+                    && let Some(schema_name) = schema_ref.split('/').next_back()
                 {
-                    if let Some(schema_name) = schema_ref.split('/').next_back() {
-                        referenced_components.insert(schema_name.to_string());
-                    }
+                    referenced_components.insert(schema_name.to_string());
                 }
             }
         }
