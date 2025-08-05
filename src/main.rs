@@ -178,19 +178,13 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn get_webhooks(spec: &OpenApi) -> Vec<String> {
-    let empty_obj = serde_json::json!({});
-    let empty_obj = empty_obj.as_object().unwrap();
+    let empty_obj = serde_json::Map::new();
     let mut referenced_components = std::collections::BTreeSet::<String>::new();
     if let Some(webhooks) = spec.extensions.get("x-webhooks") {
-        for req in webhooks.as_object().unwrap_or(empty_obj).values() {
-            for method in req.as_object().unwrap_or(empty_obj).values() {
-                if let Some(schema_ref) = method
-                    .get("requestBody")
-                    .and_then(|v| v.get("content"))
-                    .and_then(|v| v.get("application/json"))
-                    .and_then(|v| v.get("schema"))
-                    .and_then(|v| v.get("$ref"))
-                    .and_then(|v| v.as_str())
+        for req in webhooks.as_object().unwrap_or(&empty_obj).values() {
+            for method in req.as_object().unwrap_or(&empty_obj).values() {
+                if let Some(schema_ref) =
+                    method["requestBody"]["content"]["application/json"]["schema"]["$ref"].as_str()
                 {
                     if let Some(schema_name) = schema_ref.split('/').next_back() {
                         referenced_components.insert(schema_name.to_string());
