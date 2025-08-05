@@ -49,9 +49,9 @@ enum Command {
         #[arg(short, long)]
         template: Utf8PathBuf,
 
-        /// Path to the input file.
+        /// Path to the input file(s).
         #[arg(short, long)]
-        input_file: String,
+        input_file: Vec<String>,
 
         /// Path to the output directory.
         #[arg(short, long)]
@@ -63,9 +63,9 @@ enum Command {
     },
     /// Generate api.ron and types.ron files, for debugging.
     Debug {
-        /// Path to the input file.
+        /// Path to the input file(s).
         #[arg(short, long)]
-        input_file: String,
+        input_file: Vec<String>,
     },
 }
 
@@ -86,38 +86,45 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_writer(io::stderr).init();
 
     let args = CliArgs::parse();
-    let input_file = match &args.command {
-        Command::Generate { input_file, .. } => input_file,
-        Command::Debug { input_file } => input_file,
-    };
 
     let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
     let specified_operations = BTreeSet::from_iter(args.specified_operations);
 
-    let input_file = Path::new(input_file);
-    let input_file_ext = input_file
-        .extension()
-        .context("input file must have a file extension")?;
-    let input_file_contents = fs::read_to_string(input_file)?;
-
-    let api = if input_file_ext == "json" {
-        let spec: OpenApi =
-            serde_json::from_str(&input_file_contents).context("failed to parse OpenAPI spec")?;
-
-        let webhooks = get_webhooks(&spec);
-        Api::new(
-            spec.paths.context("found no endpoints in input spec")?,
-            &mut spec.components.unwrap_or_default(),
-            &webhooks,
-            args.include_mode,
-            excluded_operations,
-            specified_operations,
-        )?
-    } else if input_file_ext == "ron" {
-        ron::from_str(&input_file_contents)?
-    } else {
-        bail!("input file extension must be .json or .ron");
+    let input_files = match &args.command {
+        Command::Generate { input_file, .. } => input_file,
+        Command::Debug { input_file } => input_file,
     };
+
+    let api = input_files
+        .iter()
+        .map(|input_file| {
+            let input_file = Path::new(input_file);
+            let input_file_ext = input_file
+                .extension()
+                .context("input file must have a file extension")?;
+            let input_file_contents = fs::read_to_string(input_file)?;
+
+            if input_file_ext == "json" {
+                let spec: OpenApi = serde_json::from_str(&input_file_contents)
+                    .context("failed to parse OpenAPI spec")?;
+
+                let webhooks = get_webhooks(&spec);
+                Api::new(
+                    spec.paths.context("found no endpoints in input spec")?,
+                    &mut spec.components.unwrap_or_default(),
+                    &webhooks,
+                    args.include_mode,
+                    &excluded_operations,
+                    &specified_operations,
+                )
+                .context("converting OpenAPI spec to our own representation")
+            } else if input_file_ext == "ron" {
+                ron::from_str(&input_file_contents).context("parsing ron file")
+            } else {
+                bail!("input file extension must be .json or .ron");
+            }
+        })
+        .collect::<anyhow::Result<Api>>()?;
 
     match args.command {
         Command::Generate {

@@ -13,7 +13,7 @@ pub(crate) use self::{
     types::Types,
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Default, Deserialize, Serialize)]
 pub(crate) struct Api {
     #[serde(with = "toplevel_resources_serde")]
     pub resources: Resources,
@@ -26,8 +26,8 @@ impl Api {
         components: &mut openapi::Components,
         webhooks: &[String],
         include_mode: IncludeMode,
-        excluded_operations: BTreeSet<String>,
-        specified_operations: BTreeSet<String>,
+        excluded_operations: &BTreeSet<String>,
+        specified_operations: &BTreeSet<String>,
     ) -> anyhow::Result<Self> {
         let resources = resources::from_openapi(
             paths,
@@ -44,6 +44,17 @@ impl Api {
         );
 
         Ok(Self { resources, types })
+    }
+}
+
+impl FromIterator<Api> for Api {
+    fn from_iter<T: IntoIterator<Item = Api>>(iter: T) -> Self {
+        let mut api = Api::default();
+        for item in iter {
+            api.resources.extend(item.resources);
+            api.types.extend(item.types);
+        }
+        api
     }
 }
 

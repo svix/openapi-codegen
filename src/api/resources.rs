@@ -21,8 +21,8 @@ pub(crate) fn from_openapi(
     paths: openapi::Paths,
     component_schemas: &IndexMap<String, openapi::SchemaObject>,
     include_mode: IncludeMode,
-    excluded_operations: BTreeSet<String>,
-    specified_operations: BTreeSet<String>,
+    excluded_operations: &BTreeSet<String>,
+    specified_operations: &BTreeSet<String>,
 ) -> anyhow::Result<Resources> {
     let mut resources = BTreeMap::new();
 
@@ -43,8 +43,8 @@ pub(crate) fn from_openapi(
                 op,
                 component_schemas,
                 include_mode,
-                &excluded_operations,
-                &specified_operations,
+                excluded_operations,
+                specified_operations,
             ) {
                 let resource = get_or_insert_resource(&mut resources, res_path);
                 resource.operations.push(op);
