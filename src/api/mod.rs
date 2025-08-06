@@ -48,8 +48,10 @@ impl Api {
 }
 
 impl FromIterator<Api> for Api {
-    fn from_iter<T: IntoIterator<Item = Api>>(iter: T) -> Self {
-        let mut api = Api::default();
+    fn from_iter<T: IntoIterator<Item = Api>>(into_iter: T) -> Self {
+        let mut iter = into_iter.into_iter();
+
+        let mut api = iter.next().unwrap_or_default();
         for item in iter {
             merge_resources(&mut api.resources, item.resources);
             api.types.extend(item.types);
