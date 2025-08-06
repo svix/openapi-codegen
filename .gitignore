@@ -1,5 +1,4 @@
 /target
 /openapi.json
-/api.ron
-/types.ron
 /out
+/debug.ron

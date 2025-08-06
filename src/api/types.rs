@@ -185,7 +185,7 @@ pub(crate) enum TypeData {
 }
 
 impl TypeData {
-    fn from_object_schema(
+    pub(super) fn from_object_schema(
         obj: ObjectValidation,
         subschemas: Option<Box<SubschemaValidation>>,
     ) -> anyhow::Result<Self> {
@@ -219,7 +219,7 @@ impl TypeData {
             ensure!(sub.else_schema.is_none(), "unsupported: else subschema");
 
             if let Some(one_of) = sub.one_of {
-                return Self::struct_enum(one_of, fields);
+                return Self::inline_struct_enum(&one_of, &fields);
             }
         }
 
@@ -268,117 +268,12 @@ impl TypeData {
                 .collect::<anyhow::Result<_>>()?,
         })
     }
-
-    fn struct_enum(one_of: Vec<Schema>, fields: Vec<Field>) -> anyhow::Result<Self> {
-        let mut discriminator_field = None;
-        let mut content_field = None;
-
-        let variants = one_of
-            .into_iter()
-            .map(|variant| {
-                let Schema::Object(s) = variant else {
-                    bail!("unsupported: boolean subschema");
-                };
-
-                let data = match s.instance_type {
-                    Some(SingleOrVec::Single(it)) => match *it {
-                        InstanceType::Object => {
-                            let obj = s
-                                .object
-                                .context("unsupported: object type without further validation")?;
-                            ensure!(s.subschemas.is_none(), "unsupported: nested subschemas");
-
-                            TypeData::from_object_schema(*obj, None)?
-                        }
-                        _ => bail!("unsupported type in subschema: {it:?}"),
-                    },
-                    Some(SingleOrVec::Vec(_)) => {
-                        bail!("unsupported: multiple types in subschema")
-                    }
-                    None => bail!("unsupported: no type"),
-                };
-
-                let TypeData::Struct { mut fields } = data else {
-                    bail!("unsupported: oneOf schema with non-struct member(s)");
-                };
-
-                let mut name = None;
-
-                fields.retain_mut(|f| match &f.r#type {
-                    FieldType::StringConst { value } => {
-                        if name.is_some() {
-                            // would be nice to be able to bail, but can't from retain_mut
-                            tracing::error!("found two names for one enum variant");
-                            return false;
-                        }
-
-                        if let Some(d) = &discriminator_field {
-                            if *d != f.name {
-                                // would be nice to be able to bail, but can't from retain_mut
-                                tracing::error!("found two different consts between enum variants");
-                                return false;
-                            }
-                        } else {
-                            discriminator_field = Some(f.name.clone());
-                        }
-
-                        name = Some(value.clone());
-                        false
-                    }
-                    _ => true,
-                });
-                let name = name.context("failed to find discriminator value")?;
-
-                if fields.len() > 1 {
-                    bail!("unsupported: oneOf enum variants with more than two fields");
-                }
-
-                let schema_ref = fields
-                    .pop()
-                    .map(|f| {
-                        if let Some(c) = &content_field {
-                            if *c != f.name {
-                                bail!("found two different content fields between enum variants");
-                            }
-                        } else {
-                            content_field = Some(f.name.clone());
-                        }
-
-                        ensure!(f.default.is_none());
-                        ensure!(!f.deprecated);
-                        ensure!(!f.nullable);
-                        ensure!(f.required);
-
-                        match f.r#type {
-                            FieldType::SchemaRef { name } => Ok(name),
-                            _ => bail!("unsupported: non-$ref variant content"),
-                        }
-                    })
-                    .transpose()?;
-
-                Ok(SimpleVariant { name, schema_ref })
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        let discriminator_field =
-            discriminator_field.context("failed to detect enum discriminator field")?;
-        let content_field = content_field.context("failed to detect enum content field")?;
-
-        Ok(Self::StructEnum {
-            discriminator_field,
-            repr: StructEnumRepr::AdjacentlyTagged {
-                content_field,
-                variants,
-            },
-            fields,
-        })
-    }
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "repr", rename_all = "snake_case")]
 pub(crate) enum StructEnumRepr {
-    /// <https://serde.rs/enum-representations.html#adjacently-tagged>
+    // add more variants here to support other enum representations
     AdjacentlyTagged {
         /// Name of the field that contains the variant-specific fields.
         content_field: String,
@@ -389,7 +284,6 @@ pub(crate) enum StructEnumRepr {
         /// identify the variant.
         variants: Vec<SimpleVariant>,
     },
-    // add more variants here to support other enum representations
 }
 
 impl StructEnumRepr {
@@ -397,13 +291,18 @@ impl StructEnumRepr {
         match self {
             StructEnumRepr::AdjacentlyTagged { variants, .. } => variants
                 .iter()
-                .filter_map(|v| v.schema_ref.as_deref())
+                .filter_map(|v| match &v.content {
+                    EnumVariantType::Struct { fields } => {
+                        fields.iter().find_map(|f| f.r#type.referenced_schema())
+                    }
+                    EnumVariantType::Ref { schema_ref } => schema_ref.as_deref(),
+                })
                 .collect(),
         }
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub(crate) struct Field {
     name: String,
     #[serde(serialize_with = "serialize_field_type")]
@@ -444,15 +343,23 @@ impl Field {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(crate) enum EnumVariantType {
+    Struct {
+        fields: Vec<Field>,
+    },
+    Ref {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        schema_ref: Option<String>,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
 pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
-    name: String,
-
-    /// The name of the schema that defines the variant schema.
-    ///
-    /// If this is `None`, there may not be a field with variant-specific data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    schema_ref: Option<String>,
+    pub name: String,
+    #[serde(flatten)]
+    pub content: EnumVariantType,
 }
 
 /// Supported field type.
