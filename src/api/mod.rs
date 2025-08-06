@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, btree_map};
 
 mod resources;
 mod types;
@@ -51,10 +51,36 @@ impl FromIterator<Api> for Api {
     fn from_iter<T: IntoIterator<Item = Api>>(iter: T) -> Self {
         let mut api = Api::default();
         for item in iter {
-            api.resources.extend(item.resources);
+            merge_resources(&mut api.resources, item.resources);
             api.types.extend(item.types);
         }
         api
+    }
+}
+
+fn merge_resources(dst: &mut Resources, src: Resources) {
+    for (k, v) in src {
+        match dst.entry(k) {
+            btree_map::Entry::Vacant(entry) => {
+                entry.insert(v);
+            }
+            btree_map::Entry::Occupied(mut entry) => {
+                let Resource {
+                    name,
+                    operations,
+                    subresources,
+                } = v;
+                let dst_r = entry.get_mut();
+
+                // Resource name must be equal to the dot-separated key path to
+                // the resource. This invariant can be violated by hand-editing
+                // the .ron file, but it's fine to crash in that case.
+                assert_eq!(name, dst_r.name, "invalid resource name");
+
+                dst_r.operations.extend(operations);
+                merge_resources(&mut dst_r.subresources, subresources);
+            }
+        }
     }
 }
 
