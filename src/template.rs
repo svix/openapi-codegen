@@ -43,6 +43,18 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             Ok(contains_required_param(query_params)? || contains_required_param(header_params)?)
         },
     );
+    env.add_filter(
+        "has_non_ref_struct_enum_variants",
+        |variants: Vec<Value>| -> Result<bool, minijinja::Error> {
+            for v in &variants {
+                let ty = v.get_attr("type")?;
+                if ty.as_str().unwrap_or_default() != "ref" {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        },
+    );
 
     // --- Comment generation ---
     env.add_filter(
@@ -149,6 +161,34 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
         |state: &State, filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
             fs::write(&*filename, file_contents.as_bytes()).unwrap();
             state.set_temp("extra_generated_file", filename.into());
+        },
+    );
+
+    env.add_filter(
+        "struct_enum_ref_variants",
+        |variants: Vec<Value>| -> Result<Vec<Value>, minijinja::Error> {
+            variants
+                .into_iter()
+                .filter_map(|v| match v.get_attr("type") {
+                    Ok(t) if t.as_str().unwrap_or_default() == "ref" => Some(Ok(v)),
+                    Ok(_) => None,
+                    Err(e) => Some(Err(e)),
+                })
+                .collect()
+        },
+    );
+
+    env.add_filter(
+        "struct_enum_struct_variants",
+        |variants: Vec<Value>| -> Result<Vec<Value>, minijinja::Error> {
+            variants
+                .into_iter()
+                .filter_map(|v| match v.get_attr("type") {
+                    Ok(t) if t.as_str().unwrap_or_default() == "struct" => Some(Ok(v)),
+                    Ok(_) => None,
+                    Err(e) => Some(Err(e)),
+                })
+                .collect()
         },
     );
 

@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 mod resources;
+mod struct_enum;
 mod types;
 
 use aide::openapi;
