@@ -133,10 +133,11 @@ fn main() -> anyhow::Result<()> {
             no_postprocess,
             ..
         } => {
-            match &output_dir {
+            let generated_paths = match &output_dir {
                 Some(path) => {
-                    generate(api, template.into(), path, no_postprocess)?;
+                    let generated_paths = generate(api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
+                    generated_paths
                 }
                 None => {
                     let output_dir_root = PathBuf::from("out");
@@ -160,13 +161,17 @@ fn main() -> anyhow::Result<()> {
                         .try_into()
                         .context("non-UTF8 tempdir path")?;
 
-                    generate(api, template.into(), path, no_postprocess)?;
+                    let generated_paths = generate(api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
 
                     // Persist the TempDir if everything was successful
                     _ = output_dir.keep();
+                    generated_paths
                 }
-            }
+            };
+            let paths: Vec<&str> = generated_paths.iter().map(|p| p.as_str()).collect();
+            let serialized = serde_json::to_string_pretty(&paths)?;
+            fs::write(".generated_paths.json", serialized)?;
         }
         Command::Debug { .. } => {
             let serialized = ron::ser::to_string_pretty(&api, Default::default())?;

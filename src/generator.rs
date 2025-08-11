@@ -1,7 +1,7 @@
-use std::io::BufWriter;
+use std::{io::BufWriter, str::FromStr};
 
 use anyhow::{Context as _, bail};
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use fs_err::{self as fs, File};
 use heck::{ToLowerCamelCase, ToSnakeCase as _, ToUpperCamelCase as _};
 use minijinja::{Template, context};
@@ -28,7 +28,7 @@ pub(crate) fn generate(
     tpl_name: String,
     output_dir: &Utf8Path,
     no_postprocess: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<Utf8PathBuf>> {
     let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
         Some(basename) => (basename, &tpl_name),
         None => (tpl_name.as_str(), &format!("{tpl_name}.jinja")),
@@ -63,102 +63,112 @@ pub(crate) fn generate(
 
     fs::create_dir_all(output_dir)?;
 
-    let postprocessor = Postprocessor::from_ext(tpl_file_ext, output_dir);
-
     let generator = Generator {
         tpl,
         tpl_file_ext,
         output_dir,
-        postprocessor: &postprocessor,
-        no_postprocess,
     };
 
-    match tpl_kind {
+    let generated_paths = match tpl_kind {
         TemplateKind::OperationOptions => generator.generate_api_resources_options(api)?,
         TemplateKind::ApiResource => generator.generate_api_resources(api)?,
         TemplateKind::Type => generator.generate_types(api, output_dir)?,
         TemplateKind::Summary => generator.generate_summary(api)?,
-    }
+    };
 
     if !no_postprocess {
+        let postprocessor = Postprocessor::from_ext(tpl_file_ext, output_dir, &generated_paths);
         postprocessor.run_postprocessor()?;
     }
 
-    Ok(())
+    Ok(generated_paths)
 }
 
 struct Generator<'a> {
     tpl: Template<'a, 'a>,
     tpl_file_ext: &'a str,
     output_dir: &'a Utf8Path,
-    postprocessor: &'a Postprocessor,
-    no_postprocess: bool,
 }
 
 impl Generator<'_> {
-    fn generate_api_resources_options(self, api: Api) -> anyhow::Result<()> {
+    fn generate_api_resources_options(self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.generate_api_resources_options_inner(api.resources.values())
     }
 
     fn generate_api_resources_options_inner<'a>(
         &self,
         resources: impl Iterator<Item = &'a Resource>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Utf8PathBuf>> {
+        let mut generated_paths = vec![];
         for resource in resources {
             let referenced_components = resource.referenced_components();
             for operation in &resource.operations {
                 if operation.has_query_or_header_params() {
-                    self.render_tpl(
+                    generated_paths.extend_from_slice(&self.render_tpl(
                         Some(&format!("{}_{}_Options", resource.name, operation.name)),
                         context! { operation, resource, referenced_components },
-                    )?;
+                    )?);
                 }
             }
 
-            self.generate_api_resources_options_inner(resource.subresources.values())?;
+            generated_paths.extend_from_slice(
+                &self.generate_api_resources_options_inner(resource.subresources.values())?,
+            );
         }
 
-        Ok(())
+        Ok(generated_paths)
     }
 
-    fn generate_api_resources(self, api: Api) -> anyhow::Result<()> {
+    fn generate_api_resources(self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.generate_api_resources_inner(api.resources.values())
     }
 
     fn generate_api_resources_inner<'a>(
         &self,
         resources: impl Iterator<Item = &'a Resource>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Utf8PathBuf>> {
+        let mut generated_paths = vec![];
+
         for resource in resources {
             let referenced_components = resource.referenced_components();
-            self.render_tpl(
+            generated_paths.extend_from_slice(&self.render_tpl(
                 Some(&resource.name),
                 context! { resource, referenced_components },
-            )?;
-            self.generate_api_resources_inner(resource.subresources.values())?;
+            )?);
+            generated_paths.extend_from_slice(
+                &self.generate_api_resources_inner(resource.subresources.values())?,
+            );
         }
 
-        Ok(())
+        Ok(generated_paths)
     }
 
-    fn generate_types(self, api: Api, output_dir: &Utf8Path) -> anyhow::Result<()> {
+    fn generate_types(self, api: Api, output_dir: &Utf8Path) -> anyhow::Result<Vec<Utf8PathBuf>> {
+        let mut generated_paths = vec![];
+
         let output_dir = output_dir.as_str();
         for (name, ty) in api.types {
             let referenced_components = ty.referenced_components();
-            self.render_tpl(
+            generated_paths.extend_from_slice(&self.render_tpl(
                 Some(&name),
                 context! { type => ty, referenced_components, output_dir },
-            )?;
+            )?);
         }
 
-        Ok(())
+        Ok(generated_paths)
     }
 
-    fn generate_summary(&self, api: Api) -> anyhow::Result<()> {
+    fn generate_summary(&self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.render_tpl(None, context! { api })
     }
 
-    fn render_tpl(&self, output_name: Option<&str>, ctx: minijinja::Value) -> anyhow::Result<()> {
+    fn render_tpl(
+        &self,
+        output_name: Option<&str>,
+        ctx: minijinja::Value,
+    ) -> anyhow::Result<Vec<Utf8PathBuf>> {
+        let mut generated_paths = vec![];
+
         let tpl_file_ext = self.tpl_file_ext;
         let basename = match (output_name, tpl_file_ext) {
             (Some(name), "ts") => name.to_lower_camel_case(),
@@ -174,19 +184,18 @@ impl Generator<'_> {
         };
 
         let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
+        generated_paths.push(file_path.clone());
 
         let out_file = BufWriter::new(File::create(&file_path)?);
 
         let state = self.tpl.render_to_write(ctx, out_file)?;
 
-        if !self.no_postprocess {
-            if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
-                self.postprocessor
-                    .add_path(Utf8Path::new(extra_generated_file.as_str().unwrap()));
-            }
-            self.postprocessor.add_path(&file_path);
+        if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
+            let extra_generated_filepath =
+                Utf8PathBuf::from_str(extra_generated_file.as_str().unwrap())?;
+            generated_paths.push(extra_generated_filepath);
         }
 
-        Ok(())
+        Ok(generated_paths)
     }
 }
