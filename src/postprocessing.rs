@@ -123,15 +123,11 @@ impl PostprocessorLanguage {
             Self::TypeScript => &[
                 (
                     "biome",
-                    &["lint", "--only=correctness/noUnusedImports", "--write"],
-                ),
-                (
-                    "biome",
                     &[
-                        "check",
-                        "--formatter-enabled=false",
-                        "--linter-enabled=false",
-                        "--organize-imports-enabled=true",
+                        "lint",
+                        "--only=organizeImports",
+                        "--only=noUnusedImports",
+                        "--unsafe",
                         "--write",
                     ],
                 ),
