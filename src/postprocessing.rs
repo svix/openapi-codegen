@@ -1,24 +1,32 @@
-use std::{cell::RefCell, io, process::Command};
+use std::{io, process::Command};
 
 use anyhow::bail;
 use camino::{Utf8Path, Utf8PathBuf};
 
 #[derive(Clone)]
-pub(crate) struct Postprocessor {
-    files_to_process: RefCell<Vec<Utf8PathBuf>>,
+pub(crate) struct Postprocessor<'a> {
+    files_to_process: &'a [Utf8PathBuf],
     postprocessor_lang: PostprocessorLanguage,
     output_dir: Utf8PathBuf,
 }
 
-impl Postprocessor {
-    fn new(postprocessor_lang: PostprocessorLanguage, output_dir: Utf8PathBuf) -> Self {
+impl<'a> Postprocessor<'a> {
+    fn new(
+        postprocessor_lang: PostprocessorLanguage,
+        output_dir: Utf8PathBuf,
+        files_to_process: &'a [Utf8PathBuf],
+    ) -> Self {
         Self {
-            files_to_process: RefCell::new(Vec::new()),
+            files_to_process,
             postprocessor_lang,
             output_dir,
         }
     }
-    pub(crate) fn from_ext(ext: &str, output_dir: &Utf8Path) -> Self {
+    pub(crate) fn from_ext(
+        ext: &str,
+        output_dir: &Utf8Path,
+        files_to_process: &'a [Utf8PathBuf],
+    ) -> Self {
         let lang = match ext {
             "py" => PostprocessorLanguage::Python,
             "rs" => PostprocessorLanguage::Rust,
@@ -33,7 +41,7 @@ impl Postprocessor {
                 PostprocessorLanguage::Unknown
             }
         };
-        Self::new(lang, output_dir.to_path_buf())
+        Self::new(lang, output_dir.to_path_buf(), files_to_process)
     }
 
     pub(crate) fn run_postprocessor(&self) -> anyhow::Result<()> {
@@ -42,7 +50,7 @@ impl Postprocessor {
             PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &self.files_to_process.borrow())?;
+                    execute_command(command, args, self.files_to_process)?;
                 }
             }
             // pass output dir to postprocessor
@@ -54,16 +62,12 @@ impl Postprocessor {
             | PostprocessorLanguage::TypeScript => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
-                    execute_command(command, args, &vec![self.output_dir.clone()])?;
+                    execute_command(command, args, std::slice::from_ref(&self.output_dir))?;
                 }
             }
             PostprocessorLanguage::Unknown => (),
         }
         Ok(())
-    }
-    pub(crate) fn add_path(&self, path: &Utf8Path) {
-        let mut v = self.files_to_process.borrow_mut();
-        v.push(path.to_path_buf());
     }
 }
 
@@ -151,7 +155,7 @@ impl PostprocessorLanguage {
 fn execute_command(
     command: &'static str,
     args: &[&str],
-    paths: &Vec<Utf8PathBuf>,
+    paths: &[Utf8PathBuf],
 ) -> anyhow::Result<()> {
     let result = Command::new(command).args(args).args(paths).status();
     match result {
