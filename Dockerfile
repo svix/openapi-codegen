@@ -89,8 +89,8 @@ RUN echo "25157797a0a972c2290b5bc71530c4f7ad646458025e3484412a6e5a9b8c9aa6 googl
 
 
 # Javascript
-ARG BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/cli/v1.9.4/biome-linux-x64-musl"
-ARG BIOME_SHA256="02ca13dcbb5d78839e743b315b03c8c8832fa8178bb81c5e29ae5ad45ce96b82"
+ARG BIOME_DL_LINK="https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%402.1.4/biome-linux-x64-musl"
+ARG BIOME_SHA256="6d6bd2213cffab0d68d741c0be466bcd21cd6f5eca1e0e5aac2a991bf9f17cf2"
 RUN echo "${BIOME_SHA256} biome" > biome.sha256 && \
     curl -fsSL --output biome "${BIOME_DL_LINK}" && \
     sha256sum biome.sha256 -c && \
