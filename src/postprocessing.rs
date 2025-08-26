@@ -36,6 +36,7 @@ impl<'a> Postprocessor<'a> {
             "java" => PostprocessorLanguage::Java,
             "ts" => PostprocessorLanguage::TypeScript,
             "rb" => PostprocessorLanguage::Ruby,
+            "php" => PostprocessorLanguage::Php,
             _ => {
                 tracing::warn!("no known postprocessing command(s) for {ext} files");
                 PostprocessorLanguage::Unknown
@@ -55,6 +56,7 @@ impl<'a> Postprocessor<'a> {
             }
             // pass output dir to postprocessor
             PostprocessorLanguage::Ruby
+            | PostprocessorLanguage::Php
             | PostprocessorLanguage::Python
             | PostprocessorLanguage::Go
             | PostprocessorLanguage::Kotlin
@@ -81,6 +83,7 @@ pub(crate) enum PostprocessorLanguage {
     Java,
     TypeScript,
     Ruby,
+    Php,
     Unknown,
 }
 
@@ -148,6 +151,16 @@ impl PostprocessorLanguage {
             ],
             // https://github.com/fables-tales/rubyfmt
             Self::Ruby => &[("rubyfmt", &["-i", "--include-gitignored", "--fail-fast"])],
+            Self::Php => &[(
+                // https://github.com/PHP-CS-Fixer/PHP-CS-Fixer
+                "php84",
+                &[
+                    "/usr/bin/php-cs-fixer.phar",
+                    "--no-ansi",
+                    "fix",
+                    "--rules=no_unused_imports,@PSR12",
+                ],
+            )],
         }
     }
 }

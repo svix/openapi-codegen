@@ -705,6 +705,49 @@ impl FieldType {
             _ => panic!("types? in ruby?!?!, not on my watch!"),
         }
     }
+
+    /// returns `PHPDoc` annotations
+    fn to_phpdoc_typename(&self) -> Cow<'_, str> {
+        match self {
+            FieldType::Bool
+            | FieldType::Int16
+            | FieldType::UInt16
+            | FieldType::Int32
+            | FieldType::Int64
+            | FieldType::UInt64
+            | FieldType::String
+            | FieldType::DateTime
+            | FieldType::Uri
+            | FieldType::JsonObject
+            | FieldType::StringConst { .. }
+            | FieldType::SchemaRef { .. } => self.to_php_typename(),
+            FieldType::Set { inner } | FieldType::List { inner } => {
+                format!("list<{}>", inner.to_phpdoc_typename()).into()
+            }
+            FieldType::Map { value_ty } => {
+                format!("array<string, {}>", value_ty.to_phpdoc_typename()).into()
+            }
+        }
+    }
+
+    fn to_php_typename(&self) -> Cow<'_, str> {
+        match self {
+            FieldType::Bool => "bool".into(),
+            FieldType::UInt16
+            | FieldType::Int16
+            | FieldType::UInt64
+            | FieldType::Int32
+            | FieldType::Int64 => "int".into(),
+            FieldType::Uri | FieldType::StringConst { .. } | FieldType::String => "string".into(),
+            FieldType::DateTime => r#"\DateTimeImmutable"#.into(),
+
+            FieldType::JsonObject
+            | FieldType::List { .. }
+            | FieldType::Set { .. }
+            | FieldType::Map { .. } => "array".into(),
+            FieldType::SchemaRef { name } => name.clone().into(),
+        }
+    }
 }
 
 impl minijinja::value::Object for FieldType {
@@ -751,6 +794,14 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "to_ruby")?;
                 Ok(self.to_ruby_typename().into())
             }
+            "to_php" => {
+                ensure_no_args(args, "to_php")?;
+                Ok(self.to_php_typename().into())
+            }
+            "to_phpdoc" => {
+                ensure_no_args(args, "to_phpdoc")?;
+                Ok(self.to_phpdoc_typename().into())
+            }
 
             "is_datetime" => {
                 ensure_no_args(args, "is_datetime")?;
@@ -775,6 +826,28 @@ impl minijinja::value::Object for FieldType {
             "is_string" => {
                 ensure_no_args(args, "is_string")?;
                 Ok(matches!(**self, Self::String).into())
+            }
+            "is_bool" => {
+                ensure_no_args(args, "is_bool")?;
+                Ok(matches!(**self, Self::Bool).into())
+            }
+            "is_int_or_uint" => {
+                ensure_no_args(args, "is_int_or_uint")?;
+                use FieldType as F;
+                let is_int_or_uint = match &**self {
+                    F::Int16 | F::UInt16 | F::Int32 | F::Int64 | F::UInt64 => true,
+                    F::Bool
+                    | F::String
+                    | F::DateTime
+                    | F::Uri
+                    | F::JsonObject
+                    | F::List { .. }
+                    | F::Set { .. }
+                    | F::Map { .. }
+                    | F::SchemaRef { .. }
+                    | F::StringConst { .. } => false,
+                };
+                Ok(is_int_or_uint.into())
             }
             "is_json_object" => {
                 ensure_no_args(args, "is_json_object")?;
