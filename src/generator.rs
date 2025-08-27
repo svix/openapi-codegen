@@ -180,6 +180,7 @@ impl Generator<'_> {
             (None, "ts") => "index".to_owned(),
             (None, "go") => "models".to_owned(),
             (None, "rb") => "svix".to_owned(),
+            (None, "php") => "Svix".to_owned(),
             (None, _) => "summary".to_owned(),
         };
 
