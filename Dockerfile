@@ -113,7 +113,7 @@ RUN echo "0a9ad9fd8996064ff9aabfba3cb1cea148e3a1785263f6f91ff1431def402513  php-
     curl -fsSL --output php-cs-fixer.phar https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/releases/download/v3.86.0/php-cs-fixer.phar && \
     sha256sum -c php-cs-fixer.phar.sha256 && \
     rm php-cs-fixer.phar.sha256 && \
-    mv php-cs-fixer.phar /usr/bin/
+    mv php-cs-fixer.phar /usr/share
 
 # Rust
 # All of this craziness reduces the image size by about 600Mb
