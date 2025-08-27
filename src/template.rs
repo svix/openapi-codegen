@@ -64,7 +64,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             kwargs.assert_all_used()?;
 
             let prefix = match &*style {
-                "php" => {
+                "php_field" => {
                     if !s.contains("\n") {
                         return Ok(s.into());
                     } else {
@@ -74,7 +74,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
                 "python" => {
                     return Ok(format!(r#""""{s}""""#));
                 }
-                "java" | "kotlin" | "javascript" | "js" | "ts" | "typescript" => {
+                "java" | "kotlin" | "javascript" | "js" | "ts" | "typescript" | "php_class" => {
                     if !s.contains("\n") {
                         return Ok(format!("/** {s} */"));
                     }
