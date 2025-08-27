@@ -155,7 +155,7 @@ impl PostprocessorLanguage {
                 // https://github.com/PHP-CS-Fixer/PHP-CS-Fixer
                 "php84",
                 &[
-                    "/usr/bin/php-cs-fixer.phar",
+                    "/usr/share/php-cs-fixer.phar",
                     "--no-ansi",
                     "fix",
                     "--rules=no_unused_imports,@PSR12",
