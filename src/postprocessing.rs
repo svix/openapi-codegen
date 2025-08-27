@@ -158,7 +158,8 @@ impl PostprocessorLanguage {
                     "/usr/share/php-cs-fixer.phar",
                     "--no-ansi",
                     "fix",
-                    "--rules=no_unused_imports,@PSR12",
+                    "--using-cache=no",
+                    "--rules=no_unused_imports,@Symfony",
                 ],
             )],
         }
