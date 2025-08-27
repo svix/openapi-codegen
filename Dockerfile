@@ -65,7 +65,7 @@ RUN rm -rf /usr/local/go/*.md && \
 # main image
 FROM alpine:3.21
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/.cargo/bin"
-RUN apk add --no-cache openjdk17-jre-headless curl gcompat libgcc ruff libstdc++ php84-tokenizer php84-phar php84 
+RUN apk add --no-cache openjdk17-jre-headless curl gcompat libgcc ruff libstdc++
 
 # Kotlin
 RUN echo "5e7eb28a0b2006d1cefbc9213bfc73a8191ec2f85d639ec4fc4ec0cd04212e82 ktfmt-0.54-jar-with-dependencies.jar" > ktfmt-0.54-jar-with-dependencies.jar.sha256  && \
@@ -108,13 +108,6 @@ COPY --from=goimports-builder /go/bin/goimports /usr/bin
 # C#
 COPY --from=csharpier-builder /app/output/CSharpier /usr/bin/csharpier
 
-# PHP
-RUN echo "0a9ad9fd8996064ff9aabfba3cb1cea148e3a1785263f6f91ff1431def402513  php-cs-fixer.phar" >  php-cs-fixer.phar.sha256  && \
-    curl -fsSL --output php-cs-fixer.phar https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/releases/download/v3.86.0/php-cs-fixer.phar && \
-    sha256sum -c php-cs-fixer.phar.sha256 && \
-    rm php-cs-fixer.phar.sha256 && \
-    mv php-cs-fixer.phar /usr/share
-
 # Rust
 # All of this craziness reduces the image size by about 600Mb
 RUN apk add --no-cache binutils && \
@@ -133,6 +126,15 @@ RUN apk add --no-cache binutils && \
     rm -rf /root/.rustup/toolchains/nightly-*/share && \
     strip /root/.rustup/toolchains/nightly-*/lib/librustc_driver-*.so && \
     apk del binutils
+
+# PHP
+RUN apk add --no-cache php84-tokenizer php84-phar php84-iconv php84-mbstring php84 && \
+    echo "0a9ad9fd8996064ff9aabfba3cb1cea148e3a1785263f6f91ff1431def402513  php-cs-fixer.phar" >  php-cs-fixer.phar.sha256  && \
+    curl -fsSL --output php-cs-fixer.phar https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/releases/download/v3.86.0/php-cs-fixer.phar && \
+    sha256sum -c php-cs-fixer.phar.sha256 && \
+    rm php-cs-fixer.phar.sha256 && \
+    mv php-cs-fixer.phar /usr/share
+
 
 # openapi-codegen
 COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
