@@ -20,4 +20,4 @@ serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde_json = "1.0.133"
 tempfile = "3.14.0"
 tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
+tracing-subscriber = "0.3.20"
