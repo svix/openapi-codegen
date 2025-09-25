@@ -134,6 +134,7 @@ impl PostprocessorLanguage {
                         "lint",
                         "--only=organizeImports",
                         "--only=noUnusedImports",
+                        "--only=useImportType",
                         "--unsafe",
                         "--write",
                     ],
