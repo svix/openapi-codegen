@@ -197,5 +197,26 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
             }
         }
     }
+
+    // also check the spec.webhooks
+    for (_, webhook) in &spec.webhooks {
+        let Some(item) = webhook.as_item() else {
+            continue;
+        };
+
+        for (_, op) in item.iter() {
+            let schema_ref = op
+                .request_body
+                .as_ref()
+                .and_then(|v| v.as_item())
+                .and_then(|v| v.content.get("application/json"))
+                .and_then(|v| v.schema.as_ref())
+                .and_then(|v| v.json_schema.clone().into_object().reference)
+                .and_then(|v| v.split('/').next_back().map(|v| v.to_string()));
+            if let Some(schema_ref) = schema_ref {
+                referenced_components.insert(schema_ref);
+            }
+        }
+    }
     referenced_components.into_iter().collect::<Vec<String>>()
 }
