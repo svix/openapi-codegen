@@ -1,8 +1,8 @@
-use std::{io::BufWriter, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::{Context as _, bail};
 use camino::{Utf8Path, Utf8PathBuf};
-use fs_err::{self as fs, File};
+use fs_err as fs;
 use heck::{ToLowerCamelCase, ToSnakeCase as _, ToUpperCamelCase as _};
 use minijinja::{Template, context};
 use serde::Deserialize;
@@ -184,12 +184,15 @@ impl Generator<'_> {
             (None, _) => "summary".to_owned(),
         };
 
-        let file_path = self.output_dir.join(format!("{basename}.{tpl_file_ext}"));
+        let (rendered_data, state) = self.tpl.render_and_return_state(ctx)?;
+
+        let file_path = match state.get_temp("summary_filename") {
+            Some(summary_filename) => self.output_dir.join(summary_filename.as_str().unwrap()),
+            None => self.output_dir.join(format!("{basename}.{tpl_file_ext}")),
+        };
+
         generated_paths.push(file_path.clone());
-
-        let out_file = BufWriter::new(File::create(&file_path)?);
-
-        let state = self.tpl.render_to_write(ctx, out_file)?;
+        fs::write(&file_path, rendered_data)?;
 
         if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
             let extra_generated_filepath =

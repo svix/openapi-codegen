@@ -177,6 +177,14 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
     );
 
     env.add_function(
+        // allows overriding the summary filename
+        "set_summary_filename",
+        |state: &State, filename: Cow<'_, str>| {
+            state.set_temp("summary_filename", filename.into());
+        },
+    );
+
+    env.add_function(
         // For java lib we need to create extra files.
         "generate_extra_file",
         |state: &State, filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
