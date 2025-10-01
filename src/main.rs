@@ -9,6 +9,7 @@ use anyhow::{Context as _, bail};
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs};
+use schemars::schema::Schema;
 use tempfile::TempDir;
 
 mod api;
@@ -205,18 +206,18 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
         };
 
         for (_, op) in item.iter() {
-            let schema_ref = op
-                .request_body
-                .as_ref()
-                .and_then(|v| v.as_item())
-                .and_then(|v| v.content.get("application/json"))
-                .and_then(|v| v.schema.as_ref())
-                .and_then(|v| v.json_schema.clone().into_object().reference)
-                .and_then(|v| v.split('/').next_back().map(|v| v.to_string()));
-            if let Some(schema_ref) = schema_ref {
-                referenced_components.insert(schema_ref);
+            if let Some(body) = &op.request_body
+                && let Some(item) = body.as_item()
+                && let Some(json_content) = item.content.get("application/json")
+                && let Some(schema) = &json_content.schema
+                && let Schema::Object(obj) = &schema.json_schema
+                && let Some(reference) = &obj.reference
+                && let Some(component_name) = reference.split('/').next_back()
+            {
+                referenced_components.insert(component_name.to_owned());
             }
         }
     }
+
     referenced_components.into_iter().collect::<Vec<String>>()
 }
