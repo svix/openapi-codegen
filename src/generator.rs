@@ -23,7 +23,7 @@ enum TemplateKind {
     Summary,
 }
 
-pub(crate) fn generate(
+pub fn generate(
     api: Api,
     tpl_name: String,
     output_dir: &Utf8Path,
@@ -53,7 +53,7 @@ pub(crate) fn generate(
 
     let tpl_source = fs::read_to_string(tpl_path)?;
 
-    let mut minijinja_env = template::env(
+    let mut minijinja_env = template::env_with_dir(
         Utf8Path::new(tpl_path)
             .parent()
             .with_context(|| format!("invalid template path `{tpl_path}`"))?,

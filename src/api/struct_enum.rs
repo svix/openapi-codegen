@@ -48,7 +48,10 @@ impl TypeData {
             if variant.properties.len() == 1 {
                 variants.push(SimpleVariant {
                     name: discriminator,
-                    content: EnumVariantType::Ref { schema_ref: None },
+                    content: EnumVariantType::Ref {
+                        schema_ref: None,
+                        inner: None,
+                    },
                 });
             } else {
                 let (variant_content_field, content) = get_content(variant)?;
@@ -91,6 +94,7 @@ fn get_content(variant: &ObjectValidation) -> anyhow::Result<(String, EnumVarian
                 p_name.to_owned(),
                 EnumVariantType::Ref {
                     schema_ref: Some(get_schema_name(Some(schema_ref.as_str())).unwrap()),
+                    inner: None,
                 },
             ));
         }

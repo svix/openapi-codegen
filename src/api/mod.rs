@@ -11,18 +11,18 @@ use crate::IncludeMode;
 
 pub(crate) use self::{
     resources::{Resource, Resources},
-    types::Types,
+    types::{EnumVariantType, Field, FieldType, StructEnumRepr, Type, TypeData, Types},
 };
 
 #[derive(Default, Deserialize, Serialize)]
-pub(crate) struct Api {
+pub struct Api {
     #[serde(with = "toplevel_resources_serde")]
-    pub resources: Resources,
-    pub types: Types,
+    pub(crate) resources: Resources,
+    pub(crate) types: Types,
 }
 
 impl Api {
-    pub(crate) fn new(
+    pub fn new(
         paths: openapi::Paths,
         components: &mut openapi::Components,
         webhooks: &[String],

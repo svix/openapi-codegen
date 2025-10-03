@@ -3,15 +3,23 @@ use std::borrow::Cow;
 use camino::Utf8Path;
 use fs_err as fs;
 use heck::{
-    ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
+    ToKebabCase, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _,
+    ToUpperCamelCase as _,
 };
 use itertools::Itertools as _;
 use minijinja::{State, Value, path_loader, value::Kwargs};
 
-pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>, minijinja::Error> {
+pub fn env_with_dir(
+    tpl_dir: &Utf8Path,
+) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
     env.set_loader(path_loader(tpl_dir));
+    populate_env(env)
+}
 
+pub fn populate_env(
+    mut env: minijinja::Environment<'static>,
+) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     // === Custom filters ===
 
     // --- Case conversion ---
@@ -25,6 +33,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
     env.add_filter("to_upper_camel_case", |s: Cow<'_, str>| {
         s.to_upper_camel_case()
     });
+    env.add_filter("to_kebab_case", |s: Cow<'_, str>| s.to_kebab_case());
 
     // --- OpenAPI utils ---
     env.add_filter(
@@ -121,7 +130,16 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             None => s.into_owned(),
         }
     });
-
+    env.add_filter(
+        "strip_trailing_str",
+        |s: Cow<'_, str>, trailing_str: Cow<'_, str>| match s
+            .trim_end()
+            .strip_suffix(&trailing_str.to_string())
+        {
+            Some(stripped) => stripped.to_string(),
+            None => s.into_owned(),
+        },
+    );
     env.add_filter(
         "generate_kt_path_str",
         |s: Cow<'_, str>, path_params: &Vec<Value>| -> Result<String, minijinja::Error> {
@@ -221,9 +239,65 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
         },
     );
 
+    env.add_filter(
+        "path_param_example",
+        |path_param: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            let p: &str = &path_param;
+            Ok(path_param_to_example(p))
+        },
+    );
+
+    env.add_filter(
+        "populate_path_with_examples",
+        |s: Cow<'_, str>, path_params: &Vec<Value>| -> Result<String, minijinja::Error> {
+            let mut path_str = s.to_string();
+            for field in path_params {
+                let field = field.as_str().expect("Expected this to be a string");
+                path_str = path_str.replace(
+                    &format!("{{{field}}}"),
+                    &path_param_to_example(field).to_string(),
+                );
+            }
+            Ok(path_str)
+        },
+    );
+
+    env.add_filter(
+        "format_json_string",
+        |s: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            let decoded: serde_json::Value = serde_json::from_str(&s).unwrap();
+            Ok(serde_json::to_string_pretty(&decoded).unwrap())
+        },
+    );
+
+    env.add_filter(
+        "panic",
+        |message: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                message.to_string(),
+            ))
+        },
+    );
+
     Ok(env)
 }
 
+fn path_param_to_example(s: &str) -> String {
+    match s {
+        "attempt_id" => "atmpt_1srOrx2ZWZBpBUvZwXKQmoEYga2".to_string(),
+        "stream_id" => "strm_31Dc0DD72P5AddYUguyBd".to_string(),
+        "sink_id" => "sink_31Dc11sPYY9aLDkwPuGMa".to_string(),
+        "msg_id" => "msg_33ZHzkmDazsPr4mDUsdzXJrGQ1f".to_string(),
+        "integ_id" => "integ_1srOrx2ZWZBpBUvZwXKQmoEYga2".to_string(),
+        "source_id" => "src_31Dc4Mx7vQVLfxFgArIhq".to_string(),
+        "event_type_name" => "user.signup".to_string(),
+        "endpoint_id" => "ep_33ZIBDmz66FcPG35FnsbM6Ie4X1".to_string(),
+        "task_id" => "qtask_1srOrx2ZWZBpBUvZwXKQmoEYga2".to_string(),
+        "app_id" => "app_1srOrx2ZWZBpBUvZwXKQmoEYga2".to_string(),
+        _ => s.to_string(),
+    }
+}
 fn contains_required_param(value: Value) -> Result<bool, minijinja::Error> {
     for p in value.try_iter()? {
         if p.get_attr("required")?.is_true() {

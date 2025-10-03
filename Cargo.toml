@@ -7,17 +7,26 @@ license = "MIT"
 [dependencies]
 aide = "0.14.1"
 anyhow = "1.0.94"
+bollard = "0.19.3"
 camino = "1.1.9"
 clap = { version = "4.5.23", features = ["derive"] }
 fs-err = "3.0.0"
+futures = "0.3.31"
 heck = "0.5.0"
 indexmap = "2.7.0"
 itertools = "0.14.0"
 minijinja = { version = "2.8.0", features = ["loader"] }
+prettyplease = "0.2"
 ron = "0.10.1"
 schemars = "0.8.21"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde_json = "1.0.133"
+syn = "2"
 tempfile = "3.14.0"
+tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+uuid = { version = "1.18.1", features = ["serde", "v4"] }
+
+[features]
+openapi=[]
