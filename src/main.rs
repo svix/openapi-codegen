@@ -6,82 +6,11 @@ use std::{
 
 use aide::openapi::OpenApi;
 use anyhow::{Context as _, bail};
-use camino::Utf8PathBuf;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use fs_err::{self as fs};
+use openapi_codegen::{CliArgs, Command, api::Api, generator::generate};
 use schemars::schema::Schema;
 use tempfile::TempDir;
-
-mod api;
-mod generator;
-mod postprocessing;
-mod template;
-
-use self::{api::Api, generator::generate};
-
-#[derive(Parser)]
-struct CliArgs {
-    /// Which operations to include.
-    #[arg(global = true, long, value_enum, default_value_t = IncludeMode::OnlyPublic)]
-    include_mode: IncludeMode,
-
-    /// Ignore a specified operation id
-    #[arg(global = true, short, long = "exclude-op-id")]
-    excluded_operations: Vec<String>,
-
-    /// Only include specified operations
-    ///
-    /// This option only works with `--include-mode=only-specified`.
-    ///
-    /// Use this option, to run the codegen with a limited set of operations.
-    /// Op webhook models will be excluded from the generation
-    #[arg(global = true, long = "include-op-id")]
-    specified_operations: Vec<String>,
-
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Clone, Subcommand)]
-enum Command {
-    /// Generate code from an OpenAPI spec.
-    Generate {
-        /// Path to a template file to use (`.jinja` extension can be omitted).
-        #[arg(short, long)]
-        template: Utf8PathBuf,
-
-        /// Path to the input file(s).
-        #[arg(short, long)]
-        input_file: Vec<String>,
-
-        /// Path to the output directory.
-        #[arg(short, long)]
-        output_dir: Option<Utf8PathBuf>,
-
-        /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
-        #[arg(long)]
-        no_postprocess: bool,
-    },
-    /// Generate api.ron and types.ron files, for debugging.
-    Debug {
-        /// Path to the input file(s).
-        #[arg(short, long)]
-        input_file: Vec<String>,
-    },
-}
-
-#[derive(Copy, Clone, clap::ValueEnum)]
-#[clap(rename_all = "kebab-case")]
-enum IncludeMode {
-    /// Only public options
-    OnlyPublic,
-    /// Both public operations and operations marked with `x-hidden`
-    PublicAndHidden,
-    /// Only operations marked with `x-hidden`
-    OnlyHidden,
-    /// Only operations that were specified in `--include-op-id`
-    OnlySpecified,
-}
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_writer(io::stderr).init();
