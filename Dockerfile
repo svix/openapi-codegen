@@ -52,7 +52,13 @@ RUN dotnet publish --framework net9.0 -o output \
 
 # build goimports
 FROM docker.io/golang:1.24-alpine AS goimports-builder
+
 RUN go install golang.org/x/tools/cmd/goimports@latest
+
+RUN go install github.com/segmentio/golines@v0.13.0
+
+RUN go install mvdan.cc/gofumpt@v0.9.1
+
 # will copy /usr/local/go into release image later, trims about 170mb
 RUN rm -rf /usr/local/go/*.md && \
     rm -rf /usr/local/go/api && \
@@ -104,6 +110,8 @@ COPY --from=rubyfmt-downloader /tmp/releases/v0.11.67-0-Linux/rubyfmt /usr/bin/r
 # Go
 COPY --from=goimports-builder /usr/local/go/ /usr/local/go/
 COPY --from=goimports-builder /go/bin/goimports /usr/bin
+COPY --from=goimports-builder /go/bin/golines /usr/bin
+COPY --from=goimports-builder /go/bin/gofumpt /usr/bin
 
 # C#
 COPY --from=csharpier-builder /app/output/CSharpier /usr/bin/csharpier
