@@ -105,7 +105,7 @@ impl Resource {
 
         for operation in &self.operations {
             for param in &operation.query_params {
-                if let FieldType::SchemaRef { name } = &param.r#type {
+                if let FieldType::SchemaRef { name, inner: None } = &param.r#type {
                     res.insert(name);
                 }
             }
@@ -125,7 +125,7 @@ impl Resource {
 #[derive(Deserialize, Serialize)]
 pub(crate) struct Operation {
     /// The operation ID from the spec.
-    id: String,
+    pub(crate) id: String,
     /// The name to use for the operation in code.
     pub(crate) name: String,
     /// Description of the operation to use for documentation.
@@ -151,7 +151,7 @@ pub(crate) struct Operation {
     query_params: Vec<QueryParam>,
     /// Name of the request body type, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    request_body_schema_name: Option<String>,
+    pub(crate) request_body_schema_name: Option<String>,
     /// Some request bodies are required, but all the fields are optional (i.e. the CLI can omit
     /// this from the argument list).
     /// Only useful when `request_body_schema_name` is `Some`.

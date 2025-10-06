@@ -1,8 +1,8 @@
 use std::collections::{BTreeSet, btree_map};
 
-mod resources;
-mod struct_enum;
-mod types;
+pub(crate) mod resources;
+pub(crate) mod struct_enum;
+pub(crate) mod types;
 
 use aide::openapi;
 use serde::{Deserialize, Serialize};

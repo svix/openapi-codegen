@@ -79,14 +79,14 @@ pub(crate) fn from_referenced_components(
     types
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct Type {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     deprecated: bool,
     #[serde(flatten)]
-    data: TypeData,
+    pub data: TypeData,
 }
 
 impl Type {
@@ -159,7 +159,7 @@ fn fields_referenced_schemas(fields: &[Field]) -> BTreeSet<&str> {
         .collect()
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum TypeData {
     Struct {
@@ -270,7 +270,7 @@ impl TypeData {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "repr", rename_all = "snake_case")]
 pub(crate) enum StructEnumRepr {
     // add more variants here to support other enum representations
@@ -295,18 +295,18 @@ impl StructEnumRepr {
                     EnumVariantType::Struct { fields } => {
                         fields.iter().find_map(|f| f.r#type.referenced_schema())
                     }
-                    EnumVariantType::Ref { schema_ref } => schema_ref.as_deref(),
+                    EnumVariantType::Ref { schema_ref, .. } => schema_ref.as_deref(),
                 })
                 .collect(),
         }
     }
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct Field {
     name: String,
     #[serde(serialize_with = "serialize_field_type")]
-    r#type: FieldType,
+    pub r#type: FieldType,
     #[serde(skip_serializing_if = "Option::is_none")]
     default: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -314,6 +314,8 @@ pub(crate) struct Field {
     required: bool,
     nullable: bool,
     deprecated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    example: Option<serde_json::Value>,
 }
 
 impl Field {
@@ -322,6 +324,7 @@ impl Field {
             Schema::Bool(_) => bail!("unsupported bool schema"),
             Schema::Object(o) => o,
         };
+        let example = obj.extensions.get("example").cloned();
         let metadata = obj.metadata.clone().unwrap_or_default();
 
         let nullable = obj
@@ -329,7 +332,6 @@ impl Field {
             .get("nullable")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
         Ok(Self {
             name,
             r#type: FieldType::from_schema_object(obj)?,
@@ -338,11 +340,12 @@ impl Field {
             required,
             nullable,
             deprecated: metadata.deprecated,
+            example,
         })
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(crate) enum EnumVariantType {
     Struct {
@@ -351,10 +354,12 @@ pub(crate) enum EnumVariantType {
     Ref {
         #[serde(skip_serializing_if = "Option::is_none")]
         schema_ref: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        inner: Option<Type>,
     },
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     pub name: String,
@@ -396,6 +401,8 @@ pub(crate) enum FieldType {
     /// The name of another schema that defines this type.
     SchemaRef {
         name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        inner: Option<Type>,
     },
 
     /// A string constant, used as an enum discriminator value.
@@ -515,7 +522,7 @@ impl FieldType {
                 bail!("unsupported multi-typed parameter: `{types:?}`")
             }
             None => match get_schema_name(obj.reference.as_deref()) {
-                Some(name) => Self::SchemaRef { name },
+                Some(name) => Self::SchemaRef { name, inner: None },
                 None => bail!("unsupported type-less parameter"),
             },
         };
@@ -545,7 +552,7 @@ impl FieldType {
             Self::List { inner } | Self::Set { inner } => {
                 format!("List<{}>", inner.to_csharp_typename()).into()
             }
-            Self::SchemaRef { name } => filter_schema_ref(name, "Object"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             Self::StringConst { .. } => "string".into(),
         }
     }
@@ -565,7 +572,7 @@ impl FieldType {
             Self::List { inner } | Self::Set { inner } => {
                 format!("[]{}", inner.to_go_typename()).into()
             }
-            Self::SchemaRef { name } => filter_schema_ref(name, "map[string]any"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "map[string]any"),
             Self::StringConst { .. } => "string".into(),
         }
     }
@@ -586,7 +593,7 @@ impl FieldType {
             Self::JsonObject => "Map<String,Any>".into(),
             Self::List { inner } => format!("List<{}>", inner.to_kotlin_typename()).into(),
             Self::Set { inner } => format!("Set<{}>", inner.to_kotlin_typename()).into(),
-            Self::SchemaRef { name } => filter_schema_ref(name, "Map<String,Any>"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "Map<String,Any>"),
             Self::StringConst { .. } => "String".into(),
         }
     }
@@ -606,7 +613,7 @@ impl FieldType {
             Self::Map { value_ty } => {
                 format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
-            Self::SchemaRef { name } => filter_schema_ref(name, "any"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "any"),
             Self::StringConst { .. } => "string".into(),
         }
     }
@@ -633,14 +640,14 @@ impl FieldType {
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef { name } => filter_schema_ref(name, "serde_json::Value"),
+            Self::SchemaRef { name,.. } => filter_schema_ref(name, "serde_json::Value"),
             Self::StringConst { .. } => "String".into()
         }
     }
 
     pub(crate) fn referenced_schema(&self) -> Option<&str> {
         match self {
-            Self::SchemaRef { name } => {
+            Self::SchemaRef { name, .. } => {
                 // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
                 // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
                 // we should change this server side, but for now I am changing it here
@@ -659,7 +666,7 @@ impl FieldType {
             Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => "int".into(),
             Self::String => "str".into(),
             Self::DateTime => "datetime".into(),
-            Self::SchemaRef { name } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
             Self::Set { inner } | Self::List { inner } => {
@@ -690,7 +697,7 @@ impl FieldType {
             FieldType::Map { value_ty } => {
                 format!("Map<String,{}>", value_ty.to_java_typename()).into()
             }
-            FieldType::SchemaRef { name } => filter_schema_ref(name, "Object"),
+            FieldType::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             // backwards compat
             FieldType::StringConst { .. } => "TypeEnum".into(),
         }
@@ -698,7 +705,7 @@ impl FieldType {
 
     fn to_ruby_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::SchemaRef { name } => name.clone().into(),
+            FieldType::SchemaRef { name, .. } => name.clone().into(),
             FieldType::StringConst { .. } => {
                 unreachable!("FieldType::const should never be exposed to template code")
             }
@@ -745,7 +752,7 @@ impl FieldType {
             | FieldType::List { .. }
             | FieldType::Set { .. }
             | FieldType::Map { .. } => "array".into(),
-            FieldType::SchemaRef { name } => name.clone().into(),
+            FieldType::SchemaRef { name, .. } => name.clone().into(),
         }
     }
 }
@@ -827,6 +834,10 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_string")?;
                 Ok(matches!(**self, Self::String).into())
             }
+            "is_uri" => {
+                ensure_no_args(args, "is_uri")?;
+                Ok(matches!(**self, Self::Uri).into())
+            }
             "is_bool" => {
                 ensure_no_args(args, "is_bool")?;
                 Ok(matches!(**self, Self::Bool).into())
@@ -865,6 +876,17 @@ impl minijinja::value::Object for FieldType {
                 let ty = match &**self {
                     FieldType::List { inner } | FieldType::Set { inner } => {
                         Some(minijinja::Value::from_dyn_object(inner.clone()))
+                    }
+                    _ => None,
+                };
+                Ok(ty.into())
+            }
+            "inner_schema_ref_ty" => {
+                ensure_no_args(args, "inner_schema_ref_ty")?;
+                let ty = match &**self {
+                    FieldType::SchemaRef { inner, .. } => {
+                        let i = inner.as_ref().unwrap().clone();
+                        Some(minijinja::Value::from_serialize(i))
                     }
                     _ => None,
                 };

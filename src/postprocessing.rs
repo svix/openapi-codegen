@@ -2,17 +2,51 @@ use std::{io, process::Command};
 
 use anyhow::bail;
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::Serialize;
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CodegenLanguage {
+    Python,
+    Rust,
+    Go,
+    Kotlin,
+    CSharp,
+    Java,
+    TypeScript,
+    Ruby,
+    Php,
+    Shell,
+    Unknown,
+}
+
+impl CodegenLanguage {
+    pub fn ext(self) -> &'static str {
+        match self {
+            CodegenLanguage::Python => "py",
+            CodegenLanguage::Rust => "rs",
+            CodegenLanguage::Go => "go",
+            CodegenLanguage::Kotlin => "kt",
+            CodegenLanguage::CSharp => "cs",
+            CodegenLanguage::Java => "java",
+            CodegenLanguage::TypeScript => "ts",
+            CodegenLanguage::Ruby => "rb",
+            CodegenLanguage::Php => "php",
+            CodegenLanguage::Shell => "sh",
+            CodegenLanguage::Unknown => "txt",
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Postprocessor<'a> {
     files_to_process: &'a [Utf8PathBuf],
-    postprocessor_lang: PostprocessorLanguage,
+    postprocessor_lang: CodegenLanguage,
     output_dir: Utf8PathBuf,
 }
 
 impl<'a> Postprocessor<'a> {
     fn new(
-        postprocessor_lang: PostprocessorLanguage,
+        postprocessor_lang: CodegenLanguage,
         output_dir: Utf8PathBuf,
         files_to_process: &'a [Utf8PathBuf],
     ) -> Self {
@@ -28,18 +62,19 @@ impl<'a> Postprocessor<'a> {
         files_to_process: &'a [Utf8PathBuf],
     ) -> Self {
         let lang = match ext {
-            "py" => PostprocessorLanguage::Python,
-            "rs" => PostprocessorLanguage::Rust,
-            "go" => PostprocessorLanguage::Go,
-            "kt" => PostprocessorLanguage::Kotlin,
-            "cs" => PostprocessorLanguage::CSharp,
-            "java" => PostprocessorLanguage::Java,
-            "ts" => PostprocessorLanguage::TypeScript,
-            "rb" => PostprocessorLanguage::Ruby,
-            "php" => PostprocessorLanguage::Php,
+            "py" => CodegenLanguage::Python,
+            "rs" => CodegenLanguage::Rust,
+            "go" => CodegenLanguage::Go,
+            "kt" => CodegenLanguage::Kotlin,
+            "cs" => CodegenLanguage::CSharp,
+            "java" => CodegenLanguage::Java,
+            "ts" => CodegenLanguage::TypeScript,
+            "rb" => CodegenLanguage::Ruby,
+            "php" => CodegenLanguage::Php,
+            "sh" => CodegenLanguage::Shell,
             _ => {
                 tracing::warn!("no known postprocessing command(s) for {ext} files");
-                PostprocessorLanguage::Unknown
+                CodegenLanguage::Unknown
             }
         };
         Self::new(lang, output_dir.to_path_buf(), files_to_process)
@@ -48,49 +83,35 @@ impl<'a> Postprocessor<'a> {
     pub(crate) fn run_postprocessor(&self) -> anyhow::Result<()> {
         match self.postprocessor_lang {
             // pass each file to postprocessor at once
-            PostprocessorLanguage::Java | PostprocessorLanguage::Rust => {
+            CodegenLanguage::Java | CodegenLanguage::Rust => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
                     execute_command(command, args, self.files_to_process)?;
                 }
             }
             // pass output dir to postprocessor
-            PostprocessorLanguage::Ruby
-            | PostprocessorLanguage::Php
-            | PostprocessorLanguage::Python
-            | PostprocessorLanguage::Go
-            | PostprocessorLanguage::Kotlin
-            | PostprocessorLanguage::CSharp
-            | PostprocessorLanguage::TypeScript => {
+            CodegenLanguage::Ruby
+            | CodegenLanguage::Php
+            | CodegenLanguage::Python
+            | CodegenLanguage::Go
+            | CodegenLanguage::Kotlin
+            | CodegenLanguage::CSharp
+            | CodegenLanguage::TypeScript => {
                 let commands = self.postprocessor_lang.postprocessing_commands();
                 for (command, args) in commands {
                     execute_command(command, args, std::slice::from_ref(&self.output_dir))?;
                 }
             }
-            PostprocessorLanguage::Unknown => (),
+            CodegenLanguage::Unknown | CodegenLanguage::Shell => (),
         }
         Ok(())
     }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) enum PostprocessorLanguage {
-    Python,
-    Rust,
-    Go,
-    Kotlin,
-    CSharp,
-    Java,
-    TypeScript,
-    Ruby,
-    Php,
-    Unknown,
-}
-
-impl PostprocessorLanguage {
+impl CodegenLanguage {
     fn postprocessing_commands(&self) -> &[(&'static str, &[&str])] {
         match self {
-            Self::Unknown => &[],
+            Self::Unknown | Self::Shell => &[],
             // https://github.com/astral-sh/ruff
             Self::Python => &[
                 ("ruff", &["check", "--no-respect-gitignore", "--fix"]), // First lint and remove unused imports
