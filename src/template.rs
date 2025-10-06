@@ -3,15 +3,24 @@ use std::borrow::Cow;
 use camino::Utf8Path;
 use fs_err as fs;
 use heck::{
-    ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _,
+    ToKebabCase, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _,
+    ToUpperCamelCase as _,
 };
 use itertools::Itertools as _;
 use minijinja::{State, Value, path_loader, value::Kwargs};
+use serde::Deserialize;
 
-pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>, minijinja::Error> {
+pub fn env_with_dir(
+    tpl_dir: &Utf8Path,
+) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     let mut env = minijinja::Environment::new();
     env.set_loader(path_loader(tpl_dir));
+    populate_env(env)
+}
 
+pub fn populate_env(
+    mut env: minijinja::Environment<'static>,
+) -> Result<minijinja::Environment<'static>, minijinja::Error> {
     // === Custom filters ===
 
     // --- Case conversion ---
@@ -25,6 +34,7 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
     env.add_filter("to_upper_camel_case", |s: Cow<'_, str>| {
         s.to_upper_camel_case()
     });
+    env.add_filter("to_kebab_case", |s: Cow<'_, str>| s.to_kebab_case());
 
     // --- OpenAPI utils ---
     env.add_filter(
@@ -121,7 +131,16 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
             None => s.into_owned(),
         }
     });
-
+    env.add_filter(
+        "strip_trailing_str",
+        |s: Cow<'_, str>, trailing_str: Cow<'_, str>| match s
+            .trim_end()
+            .strip_suffix(&trailing_str.to_string())
+        {
+            Some(stripped) => stripped.to_string(),
+            None => s.into_owned(),
+        },
+    );
     env.add_filter(
         "generate_kt_path_str",
         |s: Cow<'_, str>, path_params: &Vec<Value>| -> Result<String, minijinja::Error> {
@@ -218,6 +237,50 @@ pub(crate) fn env(tpl_dir: &Utf8Path) -> Result<minijinja::Environment<'static>,
                     Err(e) => Some(Err(e)),
                 })
                 .collect()
+        },
+    );
+
+    env.add_filter(
+        "format_json_string",
+        |s: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            let decoded: serde_json::Value = serde_json::from_str(&s).unwrap();
+            Ok(serde_json::to_string_pretty(&decoded).unwrap())
+        },
+    );
+
+    env.add_function(
+        "panic",
+        |message: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                message.to_string(),
+            ))
+        },
+    );
+
+    env.add_filter(
+        // TODO: fix this ugly ass code :(
+        // TLDR: If I have a number serde_json::Value, it does not get passed the the template correctly
+        // see this issue: https://github.com/mitsuhiko/minijinja/issues/641
+        "fix_serde_number_repr",
+        |num: Cow<'_, str>| -> Result<i64, minijinja::Error> {
+            if num.is_empty() {
+                // default int example value
+                return Ok(1);
+            }
+            if let Ok(parsed_num) = num.parse::<i64>() {
+                Ok(parsed_num)
+            } else {
+                #[derive(Deserialize)]
+                struct SerdeNum {
+                    #[serde(rename = "$serde_json::private::Number")]
+                    key: String,
+                }
+                let num: SerdeNum = serde_json::from_str(&num).unwrap();
+                let parsed_num: i64 = num.key.parse().unwrap();
+
+                Ok(parsed_num)
+            }
         },
     );
 
