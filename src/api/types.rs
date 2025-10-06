@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, Mutex, RwLock},
 };
 
 use aide::openapi;
@@ -386,17 +386,17 @@ pub(crate) enum FieldType {
     JsonObject,
     /// A regular old list.
     List {
-        inner: Arc<FieldType>,
+        inner: Arc<RwLock<FieldType>>,
     },
     /// List with unique items.
     Set {
-        inner: Arc<FieldType>,
+        inner: Arc<RwLock<FieldType>>,
     },
     /// A map with a given value type.
     ///
     /// The key type is always `String` in JSON schemas.
     Map {
-        value_ty: Arc<FieldType>,
+        value_ty: Arc<RwLock<FieldType>>,
     },
     /// The name of another schema that defines this type.
     SchemaRef {
@@ -476,7 +476,7 @@ impl FieldType {
                             bail!("unsupported multi-typed array parameter: `{types:?}`")
                         }
                     };
-                    let inner = Arc::new(Self::from_schema(*inner)?);
+                    let inner = Arc::new(RwLock::new(Self::from_schema(*inner)?));
                     if array.unique_items == Some(true) {
                         Self::Set { inner }
                     } else {
@@ -511,7 +511,8 @@ impl FieldType {
                         Schema::Bool(true) => Self::JsonObject,
                         Schema::Bool(false) => bail!("unsupported `additional_properties: false`"),
                         Schema::Object(schema_object) => {
-                            let value_ty = Arc::new(Self::from_schema_object(schema_object)?);
+                            let value_ty =
+                                Arc::new(RwLock::new(Self::from_schema_object(schema_object)?));
                             Self::Map { value_ty }
                         }
                     }
@@ -546,11 +547,13 @@ impl FieldType {
             Self::DateTime => "DateTime".into(),
             Self::Uri => "string".into(),
             Self::JsonObject => "Object".into(),
-            Self::Map { value_ty } => {
-                format!("Dictionary<string, {}>", value_ty.to_csharp_typename()).into()
-            }
+            Self::Map { value_ty } => format!(
+                "Dictionary<string, {}>",
+                value_ty.read().unwrap().to_csharp_typename()
+            )
+            .into(),
             Self::List { inner } | Self::Set { inner } => {
-                format!("List<{}>", inner.to_csharp_typename()).into()
+                format!("List<{}>", inner.read().unwrap().to_csharp_typename()).into()
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             Self::StringConst { .. } => "string".into(),
@@ -568,9 +571,11 @@ impl FieldType {
             Self::Uri | Self::String => "string".into(),
             Self::DateTime => "time.Time".into(),
             Self::JsonObject => "map[string]any".into(),
-            Self::Map { value_ty } => format!("map[string]{}", value_ty.to_go_typename()).into(),
+            Self::Map { value_ty } => {
+                format!("map[string]{}", value_ty.read().unwrap().to_go_typename()).into()
+            }
             Self::List { inner } | Self::Set { inner } => {
-                format!("[]{}", inner.to_go_typename()).into()
+                format!("[]{}", inner.read().unwrap().to_go_typename()).into()
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "map[string]any"),
             Self::StringConst { .. } => "string".into(),
@@ -587,12 +592,18 @@ impl FieldType {
             Self::UInt64 => "ULong".into(),
             Self::Uri | Self::String => "String".into(),
             Self::DateTime => "Instant".into(),
-            Self::Map { value_ty } => {
-                format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
-            }
+            Self::Map { value_ty } => format!(
+                "Map<String,{}>",
+                value_ty.read().unwrap().to_kotlin_typename()
+            )
+            .into(),
             Self::JsonObject => "Map<String,Any>".into(),
-            Self::List { inner } => format!("List<{}>", inner.to_kotlin_typename()).into(),
-            Self::Set { inner } => format!("Set<{}>", inner.to_kotlin_typename()).into(),
+            Self::List { inner } => {
+                format!("List<{}>", inner.read().unwrap().to_kotlin_typename()).into()
+            }
+            Self::Set { inner } => {
+                format!("Set<{}>", inner.read().unwrap().to_kotlin_typename()).into()
+            }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "Map<String,Any>"),
             Self::StringConst { .. } => "String".into(),
         }
@@ -608,11 +619,13 @@ impl FieldType {
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
             Self::List { inner } | Self::Set { inner } => {
-                format!("{}[]", inner.to_js_typename()).into()
+                format!("{}[]", inner.read().unwrap().to_js_typename()).into()
             }
-            Self::Map { value_ty } => {
-                format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
-            }
+            Self::Map { value_ty } => format!(
+                "{{ [key: string]: {} }}",
+                value_ty.read().unwrap().to_js_typename()
+            )
+            .into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "any"),
             Self::StringConst { .. } => "string".into(),
         }
@@ -633,11 +646,11 @@ impl FieldType {
             Self::JsonObject => "serde_json::Value".into(),
             // FIXME: Treat set differently? (BTreeSet)
             Self::List { inner } | Self::Set { inner } => {
-                format!("Vec<{}>", inner.to_rust_typename()).into()
+                format!("Vec<{}>", inner.read().unwrap(). to_rust_typename()).into()
             }
             Self::Map { value_ty } => format!(
                 "std::collections::HashMap<String, {}>",
-                value_ty.to_rust_typename(),
+                value_ty.read().unwrap(). to_rust_typename(),
             )
             .into(),
             Self::SchemaRef { name,.. } => filter_schema_ref(name, "serde_json::Value"),
@@ -645,16 +658,17 @@ impl FieldType {
         }
     }
 
-    pub(crate) fn referenced_schema(&self) -> Option<&str> {
+    pub(crate) fn referenced_schema(&self) -> Option<&'static str> {
         match self {
             Self::SchemaRef { name, .. } => {
                 // TODO(10055): the `BackgroundTaskFinishedEvent2` struct has a field with type of `Data`
                 // this corresponds to a `#[serde(untagged)]` enum `svix_server::v1::endpoints::background_tasks::Data`
                 // we should change this server side, but for now I am changing it here
-                if name == "Data" { None } else { Some(name) }
+                let a: &'static mut str = Box::leak(name.clone().into_boxed_str());
+                if name == "Data" { None } else { Some(a) }
             }
             Self::List { inner: ty } | Self::Set { inner: ty } | Self::Map { value_ty: ty } => {
-                ty.referenced_schema()
+                ty.read().unwrap().referenced_schema()
             }
             _ => None,
         }
@@ -670,11 +684,13 @@ impl FieldType {
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
             Self::Set { inner } | Self::List { inner } => {
-                format!("t.List[{}]", inner.to_python_typename()).into()
+                format!("t.List[{}]", inner.read().unwrap().to_python_typename()).into()
             }
-            Self::Map { value_ty } => {
-                format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
-            }
+            Self::Map { value_ty } => format!(
+                "t.Dict[str, {}]",
+                value_ty.read().unwrap().to_python_typename()
+            )
+            .into(),
             Self::StringConst { .. } => "str".into(),
         }
     }
@@ -690,13 +706,17 @@ impl FieldType {
             FieldType::DateTime => "OffsetDateTime".into(),
             FieldType::Uri => "URI".into(),
             FieldType::JsonObject => "Object".into(),
-            FieldType::List { inner } => format!("List<{}>", inner.to_java_typename()).into(),
+            FieldType::List { inner } => {
+                format!("List<{}>", inner.read().unwrap().to_java_typename()).into()
+            }
             FieldType::Set { inner: field_type } => {
-                format!("Set<{}>", field_type.to_java_typename()).into()
+                format!("Set<{}>", field_type.read().unwrap().to_java_typename()).into()
             }
-            FieldType::Map { value_ty } => {
-                format!("Map<String,{}>", value_ty.to_java_typename()).into()
-            }
+            FieldType::Map { value_ty } => format!(
+                "Map<String,{}>",
+                value_ty.read().unwrap().to_java_typename()
+            )
+            .into(),
             FieldType::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             // backwards compat
             FieldType::StringConst { .. } => "TypeEnum".into(),
@@ -729,11 +749,13 @@ impl FieldType {
             | FieldType::StringConst { .. }
             | FieldType::SchemaRef { .. } => self.to_php_typename(),
             FieldType::Set { inner } | FieldType::List { inner } => {
-                format!("list<{}>", inner.to_phpdoc_typename()).into()
+                format!("list<{}>", inner.read().unwrap().to_phpdoc_typename()).into()
             }
-            FieldType::Map { value_ty } => {
-                format!("array<string, {}>", value_ty.to_phpdoc_typename()).into()
-            }
+            FieldType::Map { value_ty } => format!(
+                "array<string, {}>",
+                value_ty.read().unwrap().to_phpdoc_typename()
+            )
+            .into(),
         }
     }
 
@@ -874,9 +896,9 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "inner_type")?;
 
                 let ty = match &**self {
-                    FieldType::List { inner } | FieldType::Set { inner } => {
-                        Some(minijinja::Value::from_dyn_object(inner.clone()))
-                    }
+                    FieldType::List { inner } | FieldType::Set { inner } => Some(
+                        minijinja::Value::from_dyn_object(Arc::new(inner.read().unwrap().clone())),
+                    ),
                     _ => None,
                 };
                 Ok(ty.into())
@@ -897,9 +919,9 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "value_type")?;
 
                 let ty = match &**self {
-                    FieldType::Map { value_ty } => {
-                        Some(minijinja::Value::from_dyn_object(value_ty.clone()))
-                    }
+                    FieldType::Map { value_ty } => Some(minijinja::Value::from_dyn_object(
+                        Arc::new(value_ty.read().unwrap().clone()),
+                    )),
                     _ => None,
                 };
                 Ok(ty.into())

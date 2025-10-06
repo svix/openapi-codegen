@@ -49,18 +49,47 @@ fn codesample_env(
     Ok(env)
 }
 
+fn update_field(field_type: &mut FieldType, api: &Api) {
+    if let FieldType::SchemaRef { name, .. } = &field_type {
+            
+        let mut inner_ty = api.types.get(name).unwrap().clone();
+        if matches!(inner_ty.data,TypeData FieldType::SchemaRef{..}){
+
+        }
+        *field_type = FieldType::SchemaRef {
+            name: name.clone(),
+            inner: Some(inner_ty),
+        };
+    }
+}
+
 fn recursively_resolve_type(ty_name: &str, api: &Api) -> Type {
     let mut ty = api.types.get(ty_name).unwrap().clone();
 
     let update_fields = |fields: &mut Vec<Field>, api: &Api| {
         for f in fields.iter_mut() {
-            if let FieldType::SchemaRef { name, .. } = &f.r#type {
-                let inner_ty = api.types.get(name).unwrap().clone();
-                f.r#type = FieldType::SchemaRef {
-                    name: name.clone(),
-                    inner: Some(inner_ty),
-                };
-            }
+            match &mut f.r#type {
+                FieldType::List { inner } => {
+                    let mut gaurd = inner.write().unwrap();
+                    update_field(&mut gaurd, api)
+                }
+                FieldType::Set { inner } => {
+                    let mut gaurd = inner.write().unwrap();
+                    update_field(&mut gaurd, api)
+                }
+                FieldType::Map { value_ty } => {
+                    let mut gaurd = value_ty.write().unwrap();
+                    update_field(&mut gaurd, api)
+                }
+                FieldType::SchemaRef { name, .. } => {
+                    let inner_ty = api.types.get(name).unwrap().clone();
+                    f.r#type = FieldType::SchemaRef {
+                        name: name.clone(),
+                        inner: Some(inner_ty),
+                    };
+                }
+                _ => (),
+            };
         }
     };
     match ty.data {
