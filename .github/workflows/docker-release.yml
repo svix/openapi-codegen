@@ -25,6 +25,8 @@ jobs:
               BIOME_SHA256=6d6bd2213cffab0d68d741c0be466bcd21cd6f5eca1e0e5aac2a991bf9f17cf2
               RUBYFMT_DL_LINK=https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-x86_64.tar.gz
               RUBYFMT_SHA256=40f734a83edcc5f03f789606293af9ea622ea2a4fc3091c551b7c1f817087dcd
+              JAVAFMT_DL_LINK=https://repo1.maven.org/maven2/com/palantir/javaformat/palantir-java-format-native/2.75.0/palantir-java-format-native-2.75.0-nativeImage-linux-glibc_x86-64.bin
+              JAVAFMT_SHA256=9d8c9e65cff44bb847d16b4db2ccbd6dacbe32611eaf2587748013eda931cdac
           - runner: ubuntu-24.04-arm
             name: arm64
             build-args: |
@@ -34,6 +36,8 @@ jobs:
               BIOME_SHA256=ffa05ea6ec0e73072e46301a692eb9413d5b683366e86ab7243414ae944f4ec4
               RUBYFMT_DL_LINK=https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-aarch64.tar.gz
               RUBYFMT_SHA256=805fec1bf5400513058d8ec2d5cde0b497182b80828957ef0239190aa1f01092
+              JAVAFMT_DL_LINKhttps://repo1.maven.org/maven2/com/palantir/javaformat/palantir-java-format-native/2.75.0/palantir-java-format-native-2.75.0-nativeImage-linux-glibc_aarch64.bin
+              JAVAFMT_SHA256371e226632a5c455f017fe2ce2a614abe8cf81c743b4c27fb998373b790c2a3b
     name: Build and publish ${{ matrix.platform.name }} docker image
     if: github.ref == 'refs/heads/main'
     runs-on: "${{ matrix.platform.runner }}"

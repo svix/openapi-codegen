@@ -68,6 +68,18 @@ RUN rm -rf /usr/local/go/*.md && \
     rm -rf /usr/local/go/test/*
 
 
+# download java formatter
+FROM alpine:3.21 AS javafmt-downloader
+ARG JAVAFMT_DL_LINK="https://repo1.maven.org/maven2/com/palantir/javaformat/palantir-java-format-native/2.75.0/palantir-java-format-native-2.75.0-nativeImage-linux-glibc_x86-64.bin"
+ARG JAVAFMT_SHA256="9d8c9e65cff44bb847d16b4db2ccbd6dacbe32611eaf2587748013eda931cdac"
+RUN apk add --no-cache curl binutils coreutils
+RUN echo "${JAVAFMT_SHA256} palantir-java-format.bin" > palantir-java-format.bin.sha256 && \
+    curl -fsSL --output palantir-java-format.bin "${JAVAFMT_DL_LINK}" && \
+    sha256sum palantir-java-format.bin.sha256 -c && \
+    mv palantir-java-format.bin /usr/bin && \
+    chmod +x /usr/bin/palantir-java-format.bin
+
+
 # main image
 FROM alpine:3.21
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/.cargo/bin"
@@ -143,6 +155,8 @@ RUN apk add --no-cache php84-tokenizer php84-phar php84-iconv php84-mbstring php
     rm php-cs-fixer.phar.sha256 && \
     mv php-cs-fixer.phar /usr/share
 
+# Java formatter for code samples
+COPY --from=javafmt-downloader /usr/bin/palantir-java-format.bin /usr/bin/palantir-java-format.bin
 
 # openapi-codegen
 COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
