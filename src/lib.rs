@@ -81,10 +81,10 @@ enum Command {
 enum IncludeMode {
     /// Only public options
     OnlyPublic,
-    /// Both public operations and operations marked with `x-hidden`
-    PublicAndHidden,
-    /// Only operations marked with `x-hidden`
-    OnlyHidden,
+    /// Both public operations and operations marked with `x-internal`
+    PublicAndInternal,
+    /// Only operations marked with `x-internal`
+    OnlyInternal,
     /// Only operations that were specified in `--include-op-id`
     OnlySpecified,
 }
