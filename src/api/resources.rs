@@ -183,11 +183,14 @@ impl Operation {
         tracing::Span::current().record("op_id", &op_id);
 
         // verbose, but very easy to understand
-        let x_hidden = op.extensions.get("x-hidden").is_some_and(|val| val == true);
+        let x_internal = op
+            .extensions
+            .get("x-internal")
+            .is_some_and(|val| val == true);
         let include_operation = match include_mode {
-            IncludeMode::OnlyPublic => !x_hidden,
-            IncludeMode::PublicAndHidden => true,
-            IncludeMode::OnlyHidden => x_hidden,
+            IncludeMode::OnlyPublic => !x_internal,
+            IncludeMode::PublicAndInternal => true,
+            IncludeMode::OnlyInternal => x_internal,
             IncludeMode::OnlySpecified => specified_operations.contains(&op_id),
         };
         if !include_operation || excluded_operations.contains(&op_id) {
