@@ -191,19 +191,17 @@ impl CodesampleTemplates {
 }
 
 pub async fn generate_codesamples(
-    openapi_spec: &str,
+    openapi_spec: &OpenApi,
     templates: CodesampleTemplates,
     excluded_operation_ids: BTreeSet<String>,
     path_param_example: fn(String) -> String,
 ) -> anyhow::Result<BTreeMap<CodegenLanguage, Vec<CodeSample>>> {
-    let openapi_spec: OpenApi =
-        serde_json::from_str(openapi_spec).context("failed to parse OpenAPI spec")?;
-
     let api_ir = crate::api::Api::new(
         openapi_spec
             .paths
-            .expect("found no endpoints in input spec"),
-        &mut openapi_spec.components.unwrap_or_default(),
+            .clone()
+            .context("found no endpoints in input spec")?,
+        &mut openapi_spec.components.clone().unwrap_or_default(),
         &[],
         crate::IncludeMode::OnlyPublic,
         &excluded_operation_ids,
