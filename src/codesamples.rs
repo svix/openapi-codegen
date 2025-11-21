@@ -55,7 +55,7 @@ fn recursively_resolve_type(ty_name: &str, api: &Api) -> Type {
     let update_fields = |fields: &mut Vec<Field>, api: &Api| {
         for f in fields.iter_mut() {
             if let FieldType::SchemaRef { name, .. } = &f.r#type {
-                let inner_ty = api.types.get(name).unwrap().clone();
+                let inner_ty = recursively_resolve_type(name, api);
                 f.r#type = FieldType::SchemaRef {
                     name: name.clone(),
                     inner: Some(inner_ty),
@@ -83,7 +83,7 @@ fn recursively_resolve_type(ty_name: &str, api: &Api) -> Type {
                             }
                             EnumVariantType::Ref { schema_ref, inner } => {
                                 if let Some(schema_ref) = schema_ref {
-                                    let inner_ty = api.types.get(schema_ref).unwrap().clone();
+                                    let inner_ty = recursively_resolve_type(schema_ref, api);
                                     *inner = Some(inner_ty);
                                 }
                             }
@@ -118,7 +118,6 @@ fn generate_sample(
                 .request_body_schema_name
                 .as_ref()
                 .map(|req_body_name| recursively_resolve_type(req_body_name, api));
-
             let ctx = context! { operation, resource_parents, req_body_ty };
 
             let codesample = env.render_str(source, ctx).unwrap();
