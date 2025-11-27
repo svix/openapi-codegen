@@ -105,7 +105,11 @@ pub fn populate_env(
             };
 
             Ok(s.lines()
-                .format_with("\n", |line, f| f(&format_args!("{prefix} {line}")))
+                .format_with("\n", |line, f| {
+                    // if the line is empty, we don't want to spit out a `/// `, we want to spit out a `///`
+                    let space = if line.is_empty() { "" } else { " " };
+                    f(&format_args!("{prefix}{space}{line}"))
+                })
                 .to_string())
         },
     );
