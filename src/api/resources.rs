@@ -6,11 +6,12 @@ use indexmap::IndexMap;
 use schemars::schema::{InstanceType, Schema};
 use serde::{Deserialize, Serialize};
 
+use crate::cli_v1::IncludeMode;
+
 use super::{
     get_schema_name,
     types::{FieldType, serialize_field_type},
 };
-use crate::IncludeMode;
 
 /// The API operations of the API client we generate.
 ///
