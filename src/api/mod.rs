@@ -7,7 +7,7 @@ pub(crate) mod types;
 use aide::openapi;
 use serde::{Deserialize, Serialize};
 
-use crate::IncludeMode;
+use crate::cli_v1::IncludeMode;
 
 pub(crate) use self::{
     resources::{Resource, Resources},

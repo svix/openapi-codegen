@@ -10,6 +10,7 @@ use crate::{
         Api, Resource,
         types::{EnumVariantType, Field, FieldType, StructEnumRepr, Type, TypeData},
     },
+    cli_v1::IncludeMode,
     template,
 };
 use aide::openapi::OpenApi;
@@ -202,7 +203,7 @@ pub async fn generate_codesamples(
             .context("found no endpoints in input spec")?,
         &mut openapi_spec.components.clone().unwrap_or_default(),
         &[],
-        crate::IncludeMode::OnlyPublic,
+        IncludeMode::OnlyPublic,
         &excluded_operation_ids,
         &BTreeSet::new(),
     )?;
