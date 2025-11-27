@@ -5,6 +5,8 @@ mod generator;
 mod postprocessing;
 mod template;
 
+mod cli_v2;
+
 pub use crate::{
     cli_v1::run_cli_v1_main,
     codesamples::{CodeSample, CodesampleTemplates, generate_codesamples},
