@@ -21,6 +21,9 @@ pub fn env_with_dir(
 pub fn populate_env(
     mut env: minijinja::Environment<'static>,
 ) -> Result<minijinja::Environment<'static>, minijinja::Error> {
+    // === Custom functions ===
+    env.add_function("vec", crate::cli_v2::value_vec::new_value_vec);
+
     // === Custom filters ===
 
     // --- Case conversion ---

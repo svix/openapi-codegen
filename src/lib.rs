@@ -1,5 +1,6 @@
 mod api;
 mod cli_v1;
+pub(crate) mod cli_v2;
 mod codesamples;
 mod generator;
 mod postprocessing;
