@@ -80,7 +80,7 @@ pub(crate) fn from_referenced_components(
     types
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub(crate) struct Type {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,7 +160,7 @@ fn fields_referenced_schemas(fields: &[Field]) -> BTreeSet<&str> {
         .collect()
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum TypeData {
     Struct {
@@ -271,7 +271,7 @@ impl TypeData {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "repr", rename_all = "snake_case")]
 pub(crate) enum StructEnumRepr {
     // add more variants here to support other enum representations
@@ -303,7 +303,7 @@ impl StructEnumRepr {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub(crate) struct Field {
     name: String,
     #[serde(serialize_with = "serialize_field_type")]
@@ -346,7 +346,7 @@ impl Field {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(crate) enum EnumVariantType {
     Struct {
@@ -360,7 +360,7 @@ pub(crate) enum EnumVariantType {
     },
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub(crate) struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     pub name: String,
@@ -371,7 +371,7 @@ pub(crate) struct SimpleVariant {
 /// Supported field type.
 ///
 /// Equivalent to openapi's `type` + `format` + `$ref`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "id")]
 pub(crate) enum FieldType {
     Bool,

@@ -5,6 +5,7 @@ pub(crate) mod struct_enum;
 pub(crate) mod types;
 
 use aide::openapi;
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 
 use crate::cli_v1::IncludeMode;
@@ -46,18 +47,11 @@ impl Api {
 
         Ok(Self { resources, types })
     }
-}
 
-impl FromIterator<Api> for Api {
-    fn from_iter<T: IntoIterator<Item = Api>>(into_iter: T) -> Self {
-        let mut iter = into_iter.into_iter();
-
-        let mut api = iter.next().unwrap_or_default();
-        for item in iter {
-            merge_resources(&mut api.resources, item.resources);
-            api.types.extend(item.types);
-        }
-        api
+    pub(crate) fn merge(mut self, other: Self) -> anyhow::Result<Self> {
+        merge_resources(&mut self.resources, other.resources);
+        merge_types(&mut self.types, other.types)?;
+        Ok(self)
     }
 }
 
@@ -85,6 +79,23 @@ fn merge_resources(dst: &mut Resources, src: Resources) {
             }
         }
     }
+}
+
+fn merge_types(dst: &mut Types, src: Types) -> anyhow::Result<()> {
+    for (name, ty) in src {
+        match dst.entry(name) {
+            btree_map::Entry::Vacant(entry) => {
+                entry.insert(ty);
+            }
+            btree_map::Entry::Occupied(entry) => {
+                if *entry.get() != ty {
+                    bail!("mismatching definitions for {}", entry.key());
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {

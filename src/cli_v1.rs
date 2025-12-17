@@ -93,14 +93,14 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
 
     let api = input_files
         .iter()
-        .map(|input_file| {
+        .try_fold(Api::default(), |result, input_file| {
             let input_file = Path::new(input_file);
             let input_file_ext = input_file
                 .extension()
                 .context("input file must have a file extension")?;
             let input_file_contents = fs::read_to_string(input_file)?;
 
-            if input_file_ext == "json" {
+            let api = if input_file_ext == "json" {
                 let spec: OpenApi = serde_json::from_str(&input_file_contents)
                     .context("failed to parse OpenAPI spec")?;
 
@@ -113,14 +113,15 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
                     &excluded_operations,
                     &specified_operations,
                 )
-                .context("converting OpenAPI spec to our own representation")
+                .context("converting OpenAPI spec to our own representation")?
             } else if input_file_ext == "ron" {
-                ron::from_str(&input_file_contents).context("parsing ron file")
+                ron::from_str(&input_file_contents).context("parsing ron file")?
             } else {
                 bail!("input file extension must be .json or .ron");
-            }
-        })
-        .collect::<anyhow::Result<Api>>()?;
+            };
+
+            result.merge(api)
+        })?;
 
     match args.command {
         Command::Generate {
