@@ -82,6 +82,7 @@ fn merge_resources(dst: &mut Resources, src: Resources) {
 }
 
 fn merge_types(dst: &mut Types, src: Types) -> anyhow::Result<()> {
+    let mut mismatching_types = vec![];
     for (name, ty) in src {
         match dst.entry(name) {
             btree_map::Entry::Vacant(entry) => {
@@ -89,10 +90,18 @@ fn merge_types(dst: &mut Types, src: Types) -> anyhow::Result<()> {
             }
             btree_map::Entry::Occupied(entry) => {
                 if *entry.get() != ty {
-                    bail!("mismatching definitions for {}", entry.key());
+                    mismatching_types.push(entry.key().clone());
                 }
             }
         }
+    }
+
+    if !mismatching_types.is_empty() {
+        eprintln!("Found {} mismatching types", mismatching_types.len());
+        for m in mismatching_types {
+            eprintln!("mismatching definitions for {m}")
+        }
+        bail!("mismatching definitions found");
     }
 
     Ok(())
