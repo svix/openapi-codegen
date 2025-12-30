@@ -2,6 +2,10 @@ use std::{
     collections::BTreeSet,
     io,
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use aide::openapi::OpenApi;
@@ -11,6 +15,11 @@ use clap::{Parser, Subcommand};
 use fs_err::{self as fs};
 use schemars::schema::Schema;
 use tempfile::TempDir;
+use tracing::{Event, Level};
+use tracing_subscriber::{
+    layer::{Context, Layer, SubscriberExt as _},
+    util::SubscriberInitExt as _,
+};
 
 use crate::{api::Api, generator::generate};
 
@@ -79,9 +88,12 @@ pub(crate) enum IncludeMode {
 }
 
 pub fn run_cli_v1_main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_writer(io::stderr).init();
-
     let args = CliArgs::parse();
+    let (exit_on_error_layer, error_occurred) = ExitOnErrorLayer::new();
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(io::stderr))
+        .with(exit_on_error_layer)
+        .init();
 
     let excluded_operations = BTreeSet::from_iter(args.excluded_operations);
     let specified_operations = BTreeSet::from_iter(args.specified_operations);
@@ -176,6 +188,10 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
         }
     }
 
+    if error_occurred.load(Ordering::SeqCst) {
+        anyhow::bail!("an error was logged");
+    }
+
     Ok(())
 }
 
@@ -216,4 +232,31 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
     }
 
     referenced_components.into_iter().collect::<Vec<String>>()
+}
+
+pub struct ExitOnErrorLayer {
+    error_occurred: Arc<AtomicBool>,
+}
+
+impl ExitOnErrorLayer {
+    pub fn new() -> (Self, Arc<AtomicBool>) {
+        let error_occurred = Arc::new(AtomicBool::new(false));
+        (
+            Self {
+                error_occurred: Arc::clone(&error_occurred),
+            },
+            error_occurred,
+        )
+    }
+}
+
+impl<S> Layer<S> for ExitOnErrorLayer
+where
+    S: tracing::Subscriber,
+{
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        if *event.metadata().level() == Level::ERROR {
+            self.error_occurred.store(true, Ordering::SeqCst);
+        }
+    }
 }
