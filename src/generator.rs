@@ -24,7 +24,7 @@ enum TemplateKind {
 }
 
 pub(crate) fn generate(
-    api: Api,
+    api: &Api,
     tpl_name: String,
     output_dir: &Utf8Path,
     no_postprocess: bool,
@@ -91,7 +91,7 @@ struct Generator<'a> {
 }
 
 impl Generator<'_> {
-    fn generate_api_resources_options(self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
+    fn generate_api_resources_options(self, api: &Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.generate_api_resources_options_inner(api.resources.values())
     }
 
@@ -119,7 +119,7 @@ impl Generator<'_> {
         Ok(generated_paths)
     }
 
-    fn generate_api_resources(self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
+    fn generate_api_resources(self, api: &Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.generate_api_resources_inner(api.resources.values())
     }
 
@@ -143,14 +143,14 @@ impl Generator<'_> {
         Ok(generated_paths)
     }
 
-    fn generate_types(self, api: Api, output_dir: &Utf8Path) -> anyhow::Result<Vec<Utf8PathBuf>> {
+    fn generate_types(self, api: &Api, output_dir: &Utf8Path) -> anyhow::Result<Vec<Utf8PathBuf>> {
         let mut generated_paths = vec![];
 
         let output_dir = output_dir.as_str();
-        for (name, ty) in api.types {
+        for (name, ty) in &api.types {
             let referenced_components = ty.referenced_components();
             generated_paths.extend_from_slice(&self.render_tpl(
-                Some(&name),
+                Some(name),
                 context! { type => ty, referenced_components, output_dir },
             )?);
         }
@@ -158,7 +158,7 @@ impl Generator<'_> {
         Ok(generated_paths)
     }
 
-    fn generate_summary(&self, api: Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
+    fn generate_summary(&self, api: &Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
         self.render_tpl(None, context! { api })
     }
 

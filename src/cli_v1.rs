@@ -144,7 +144,7 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
         } => {
             let generated_paths = match &output_dir {
                 Some(path) => {
-                    let generated_paths = generate(api, template.into(), path, no_postprocess)?;
+                    let generated_paths = generate(&api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
                     generated_paths
                 }
@@ -170,7 +170,7 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
                         .try_into()
                         .context("non-UTF8 tempdir path")?;
 
-                    let generated_paths = generate(api, template.into(), path, no_postprocess)?;
+                    let generated_paths = generate(&api, template.into(), path, no_postprocess)?;
                     println!("done! output written to {path}");
 
                     // Persist the TempDir if everything was successful
