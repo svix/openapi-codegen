@@ -10,20 +10,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli_v1::IncludeMode;
 
-pub(crate) use self::{
-    resources::{Resource, Resources},
-    types::Types,
+pub use self::{
+    resources::{Operation, Resource, Resources},
+    types::{
+        EnumVariantType, Field, FieldType, SimpleVariant, StructEnumRepr, Type, TypeData, Types,
+    },
 };
 
 #[derive(Default, Deserialize, Serialize)]
-pub(crate) struct Api {
+pub struct Api {
     #[serde(with = "toplevel_resources_serde")]
     pub resources: Resources,
     pub types: Types,
 }
 
 impl Api {
-    pub(crate) fn new(
+    pub fn new(
         paths: openapi::Paths,
         components: &mut openapi::Components,
         webhooks: &[String],

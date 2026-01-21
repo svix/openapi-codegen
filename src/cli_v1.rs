@@ -76,7 +76,7 @@ enum Command {
 
 #[derive(Copy, Clone, clap::ValueEnum)]
 #[clap(rename_all = "kebab-case")]
-pub(crate) enum IncludeMode {
+pub enum IncludeMode {
     /// Only public options
     OnlyPublic,
     /// Both public operations and operations marked with `x-internal`

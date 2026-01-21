@@ -22,7 +22,7 @@ use super::{
 /// Named types referenced by API operations.
 ///
 /// Intermediate representation of (some) `components` from the spec.
-pub(crate) type Types = BTreeMap<String, Type>;
+pub type Types = BTreeMap<String, Type>;
 
 pub(crate) fn from_referenced_components(
     res: &Resources,
@@ -81,7 +81,7 @@ pub(crate) fn from_referenced_components(
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub(crate) struct Type {
+pub struct Type {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -162,7 +162,7 @@ fn fields_referenced_schemas(fields: &[Field]) -> BTreeSet<&str> {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(crate) enum TypeData {
+pub enum TypeData {
     Struct {
         fields: Vec<Field>,
     },
@@ -273,7 +273,7 @@ impl TypeData {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "repr", rename_all = "snake_case")]
-pub(crate) enum StructEnumRepr {
+pub enum StructEnumRepr {
     // add more variants here to support other enum representations
     AdjacentlyTagged {
         /// Name of the field that contains the variant-specific fields.
@@ -304,7 +304,7 @@ impl StructEnumRepr {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub(crate) struct Field {
+pub struct Field {
     name: String,
     #[serde(serialize_with = "serialize_field_type")]
     pub r#type: FieldType,
@@ -348,7 +348,7 @@ impl Field {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub(crate) enum EnumVariantType {
+pub enum EnumVariantType {
     Struct {
         fields: Vec<Field>,
     },
@@ -361,7 +361,7 @@ pub(crate) enum EnumVariantType {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub(crate) struct SimpleVariant {
+pub struct SimpleVariant {
     /// Discriminator value that identifies this variant.
     pub name: String,
     #[serde(flatten)]
@@ -373,7 +373,7 @@ pub(crate) struct SimpleVariant {
 /// Equivalent to openapi's `type` + `format` + `$ref`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "id")]
-pub(crate) enum FieldType {
+pub enum FieldType {
     Bool,
     Int16,
     UInt16,

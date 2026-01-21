@@ -16,7 +16,7 @@ use super::{
 /// The API operations of the API client we generate.
 ///
 /// Intermediate representation of `paths` from the spec.
-pub(crate) type Resources = BTreeMap<String, Resource>;
+pub type Resources = BTreeMap<String, Resource>;
 
 pub(crate) fn from_openapi(
     paths: openapi::Paths,
@@ -82,7 +82,7 @@ fn get_or_insert_resource(resources: &mut Resources, path: Vec<String>) -> &mut 
 
 /// A named group of [`Operation`]s.
 #[derive(Deserialize, Serialize)]
-pub(crate) struct Resource {
+pub struct Resource {
     pub name: String,
     pub operations: Vec<Operation>,
     pub subresources: Resources,
@@ -124,7 +124,7 @@ impl Resource {
 
 /// A named HTTP endpoint.
 #[derive(Deserialize, Serialize)]
-pub(crate) struct Operation {
+pub struct Operation {
     /// The operation ID from the spec.
     pub(crate) id: String,
     /// The name to use for the operation in code.

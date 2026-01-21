@@ -23,7 +23,7 @@ enum TemplateKind {
     Summary,
 }
 
-pub(crate) fn generate(
+pub fn generate(
     api: &Api,
     tpl_name: String,
     output_dir: &Utf8Path,
