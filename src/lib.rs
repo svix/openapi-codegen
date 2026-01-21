@@ -12,3 +12,5 @@ pub use crate::{
     generator::generate,
     postprocessing::CodegenLanguage,
 };
+pub use aide;
+pub use schemars;
