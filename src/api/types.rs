@@ -378,6 +378,7 @@ pub enum FieldType {
     Int16,
     UInt16,
     Int32,
+    UInt32,
     Int64,
     UInt64,
     String,
@@ -436,6 +437,7 @@ impl FieldType {
                     Some("int16") => Self::Int16,
                     Some("uint16") => Self::UInt16,
                     Some("int32") => Self::Int32,
+                    Some("uint32") => Self::UInt32,
                     // FIXME: Why do we have int in the spec?
                     Some("int" | "int64") => Self::Int64,
                     // FIXME: Get rid of uint in the spec..
@@ -542,6 +544,7 @@ impl FieldType {
             Self::Int32 => "int".into(),
             Self::Int64 => "long".into(),
             Self::UInt16 => "ushort".into(),
+            Self::UInt32 => "uint".into(),
             Self::UInt64 => "ulong".into(),
             Self::String => "string".into(),
             Self::DateTime => "DateTime".into(),
@@ -562,9 +565,10 @@ impl FieldType {
         match self {
             Self::Bool => "bool".into(),
             Self::Int16 => "int16".into(),
-            Self::Int32 => "int32".into(),
-            Self::Int64 => "int64".into(),
             Self::UInt16 => "uint16".into(),
+            Self::Int32 => "int32".into(),
+            Self::UInt32 => "uint32".into(),
+            Self::Int64 => "int64".into(),
             Self::UInt64 => "uint64".into(),
             Self::Uri | Self::String => "string".into(),
             Self::DateTime => "time.Time".into(),
@@ -582,8 +586,9 @@ impl FieldType {
         match self {
             Self::Bool => "Boolean".into(),
             Self::Int16 => "Short".into(),
-            Self::Int32 => "Int".into(),
             Self::UInt16 => "UShort".into(),
+            Self::Int32 => "Int".into(),
+            Self::UInt32 => "UInt".into(),
             Self::Int64 => "Long".into(),
             Self::UInt64 => "ULong".into(),
             Self::Uri | Self::String => "String".into(),
@@ -602,9 +607,12 @@ impl FieldType {
     fn to_js_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "boolean".into(),
-            Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => {
-                "number".into()
-            }
+            Self::Int16
+            | Self::UInt16
+            | Self::Int32
+            | Self::UInt32
+            | Self::Int64
+            | Self::UInt64 => "number".into(),
             Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
@@ -625,6 +633,7 @@ impl FieldType {
             Self::Int16 => "i16".into(),
             Self::UInt16 => "u16".into(),
             Self::Int32 |
+            Self::UInt32 |
             // FIXME: All integers in query params are currently i32
             Self::Int64 | Self::UInt64 => "i32".into(),
             // FIXME: Do we want a separate type for Uri?
@@ -641,7 +650,7 @@ impl FieldType {
                 value_ty.to_rust_typename(),
             )
             .into(),
-            Self::SchemaRef { name,.. } => filter_schema_ref(name, "serde_json::Value"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "serde_json::Value"),
             Self::StringConst { .. } => "String".into()
         }
     }
@@ -664,7 +673,12 @@ impl FieldType {
     fn to_python_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
-            Self::Int16 | Self::UInt16 | Self::Int32 | Self::Int64 | Self::UInt64 => "int".into(),
+            Self::Int16
+            | Self::UInt16
+            | Self::Int32
+            | Self::UInt32
+            | Self::Int64
+            | Self::UInt64 => "int".into(),
             Self::String => "str".into(),
             Self::DateTime => "datetime".into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
@@ -686,7 +700,7 @@ impl FieldType {
             FieldType::Bool => "Boolean".into(),
             FieldType::Int16 => "Short".into(),
             FieldType::UInt16 | FieldType::UInt64 | FieldType::Int64 => "Long".into(),
-            FieldType::Int32 => "Integer".into(),
+            FieldType::Int32 | FieldType::UInt32 => "Integer".into(),
             FieldType::String => "String".into(),
             FieldType::DateTime => "OffsetDateTime".into(),
             FieldType::Uri => "URI".into(),
@@ -721,6 +735,7 @@ impl FieldType {
             | FieldType::Int16
             | FieldType::UInt16
             | FieldType::Int32
+            | FieldType::UInt32
             | FieldType::Int64
             | FieldType::UInt64
             | FieldType::String
@@ -745,6 +760,7 @@ impl FieldType {
             | FieldType::Int16
             | FieldType::UInt64
             | FieldType::Int32
+            | FieldType::UInt32
             | FieldType::Int64 => "int".into(),
             FieldType::Uri | FieldType::StringConst { .. } | FieldType::String => "string".into(),
             FieldType::DateTime => r#"\DateTimeImmutable"#.into(),
@@ -845,19 +861,24 @@ impl minijinja::value::Object for FieldType {
             }
             "is_int_or_uint" => {
                 ensure_no_args(args, "is_int_or_uint")?;
-                use FieldType as F;
                 let is_int_or_uint = match &**self {
-                    F::Int16 | F::UInt16 | F::Int32 | F::Int64 | F::UInt64 => true,
-                    F::Bool
-                    | F::String
-                    | F::DateTime
-                    | F::Uri
-                    | F::JsonObject
-                    | F::List { .. }
-                    | F::Set { .. }
-                    | F::Map { .. }
-                    | F::SchemaRef { .. }
-                    | F::StringConst { .. } => false,
+                    FieldType::Int16
+                    | FieldType::UInt16
+                    | FieldType::Int32
+                    | FieldType::UInt32
+                    | FieldType::Int64
+                    | FieldType::UInt64 => true,
+
+                    FieldType::Bool
+                    | FieldType::String
+                    | FieldType::DateTime
+                    | FieldType::Uri
+                    | FieldType::JsonObject
+                    | FieldType::List { .. }
+                    | FieldType::Set { .. }
+                    | FieldType::Map { .. }
+                    | FieldType::SchemaRef { .. }
+                    | FieldType::StringConst { .. } => false,
                 };
                 Ok(is_int_or_uint.into())
             }
