@@ -632,14 +632,13 @@ impl FieldType {
             Self::Bool => "bool".into(),
             Self::Int16 => "i16".into(),
             Self::UInt16 => "u16".into(),
-            Self::Int32 |
-            Self::UInt32 |
-            // FIXME: All integers in query params are currently i32
-            Self::Int64 | Self::UInt64 => "i32".into(),
+            Self::Int32 => "i32".into(),
+            Self::UInt32 => "u32".into(),
+            Self::Int64 => "i64".into(),
+            Self::UInt64 => "u64".into(),
             // FIXME: Do we want a separate type for Uri?
             Self::Uri | Self::String => "String".into(),
-            // FIXME: Depends on those chrono imports being in scope, not that great..
-            Self::DateTime => "DateTime<Utc>".into(),
+            Self::DateTime => "jiff::Timestamp".into(),
             Self::JsonObject => "serde_json::Value".into(),
             // FIXME: Treat set differently? (BTreeSet)
             Self::List { inner } | Self::Set { inner } => {
@@ -651,7 +650,7 @@ impl FieldType {
             )
             .into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "serde_json::Value"),
-            Self::StringConst { .. } => "String".into()
+            Self::StringConst { .. } => "String".into(),
         }
     }
 
