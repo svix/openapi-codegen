@@ -1,4 +1,4 @@
-use anyhow::{bail, ensure};
+use anyhow::{Context as _, bail, ensure};
 use schemars::schema::{ObjectValidation, Schema, SchemaObject};
 
 use crate::api::{
@@ -25,16 +25,12 @@ impl SameString {
 }
 
 impl TypeData {
-    pub(super) fn inline_struct_enum(
-        one_of: &Vec<Schema>,
-        fields: &[Field],
-    ) -> anyhow::Result<Self> {
+    pub(super) fn inline_struct_enum(one_of: &[Schema], fields: &[Field]) -> anyhow::Result<Self> {
         let mut discriminator_field = SameString(None);
         let mut content_field = SameString(None);
-
         let mut variants = vec![];
 
-        for s in one_of {
+        let mut process_one_of = |s: &Schema| {
             let variant = get_obj_validation(s)?;
 
             let (variant_discriminator_name, discriminator) = get_discriminator(variant)?;
@@ -62,15 +58,23 @@ impl TypeData {
                     content,
                 });
             }
+
+            Ok(())
+        };
+
+        for (idx, s) in one_of.iter().enumerate() {
+            process_one_of(s).with_context(|| format!("oneOf[{idx}]"))?;
         }
 
         Ok(Self::StructEnum {
             discriminator_field: discriminator_field
                 .inner()
-                .expect("failed to fine discriminator field"),
+                .context("failed to find discriminator field")?,
             fields: fields.to_vec(),
             repr: StructEnumRepr::AdjacentlyTagged {
-                content_field: content_field.inner().expect("failed to fine content field"),
+                content_field: content_field
+                    .inner()
+                    .context("failed to find content field")?,
                 variants,
             },
         })
@@ -108,7 +112,7 @@ fn get_discriminator(obj: &ObjectValidation) -> anyhow::Result<(String, String)>
     let mut discriminator = None;
 
     for (p_name, p) in &obj.properties {
-        let schema_obj = get_schema_obj(p)?;
+        let schema_obj = get_schema_obj(p).with_context(|| p_name.to_owned())?;
         if let Some(enum_vals) = &schema_obj.enum_values
             && enum_vals.len() == 1
         {
