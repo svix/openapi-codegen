@@ -375,6 +375,8 @@ pub struct SimpleVariant {
 #[serde(tag = "id")]
 pub enum FieldType {
     Bool,
+    Int8,
+    UInt8,
     Int16,
     UInt16,
     Int32,
@@ -434,6 +436,8 @@ impl FieldType {
             Some(SingleOrVec::Single(ty)) => match **ty {
                 InstanceType::Boolean => Self::Bool,
                 InstanceType::Integer => match obj.format.as_deref() {
+                    Some("int8") => Self::Int8,
+                    Some("uint8") => Self::UInt8,
                     Some("int16") => Self::Int16,
                     Some("uint16") => Self::UInt16,
                     Some("int32") => Self::Int32,
@@ -464,7 +468,7 @@ impl FieldType {
                     }
 
                     match obj.format.as_deref() {
-                        None | Some("color") | Some("email") => Self::String,
+                        None | Some("color") | Some("email") | Some("uuid") => Self::String,
                         Some("date-time") => Self::DateTime,
                         Some("uri") => Self::Uri,
                         Some(f) => bail!("unsupported string format: `{f:?}`"),
@@ -540,11 +544,13 @@ impl FieldType {
     fn to_csharp_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Int8 => "sbyte".into(),
+            Self::UInt8 => "byte".into(),
             Self::Int16 => "short".into(),
-            Self::Int32 => "int".into(),
-            Self::Int64 => "long".into(),
             Self::UInt16 => "ushort".into(),
+            Self::Int32 => "int".into(),
             Self::UInt32 => "uint".into(),
+            Self::Int64 => "long".into(),
             Self::UInt64 => "ulong".into(),
             Self::String => "string".into(),
             Self::DateTime => "DateTime".into(),
@@ -564,6 +570,8 @@ impl FieldType {
     fn to_go_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Int8 => "int8".into(),
+            Self::UInt8 => "uint8".into(),
             Self::Int16 => "int16".into(),
             Self::UInt16 => "uint16".into(),
             Self::Int32 => "int32".into(),
@@ -585,6 +593,8 @@ impl FieldType {
     fn to_kotlin_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "Boolean".into(),
+            Self::Int8 => "Byte".into(),
+            Self::UInt8 => "UByte".into(),
             Self::Int16 => "Short".into(),
             Self::UInt16 => "UShort".into(),
             Self::Int32 => "Int".into(),
@@ -607,7 +617,9 @@ impl FieldType {
     fn to_js_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "boolean".into(),
-            Self::Int16
+            Self::Int8
+            | Self::UInt8
+            | Self::Int16
             | Self::UInt16
             | Self::Int32
             | Self::UInt32
@@ -630,16 +642,17 @@ impl FieldType {
     fn to_rust_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Int8 => "i8".into(),
+            Self::UInt8 => "u8".into(),
             Self::Int16 => "i16".into(),
             Self::UInt16 => "u16".into(),
-            Self::Int32 |
-            Self::UInt32 |
-            // FIXME: All integers in query params are currently i32
-            Self::Int64 | Self::UInt64 => "i32".into(),
+            Self::Int32 => "i32".into(),
+            Self::UInt32 => "u32".into(),
+            Self::Int64 => "i64".into(),
+            Self::UInt64 => "u64".into(),
             // FIXME: Do we want a separate type for Uri?
             Self::Uri | Self::String => "String".into(),
-            // FIXME: Depends on those chrono imports being in scope, not that great..
-            Self::DateTime => "DateTime<Utc>".into(),
+            Self::DateTime => "jiff::Timestamp".into(),
             Self::JsonObject => "serde_json::Value".into(),
             // FIXME: Treat set differently? (BTreeSet)
             Self::List { inner } | Self::Set { inner } => {
@@ -651,7 +664,7 @@ impl FieldType {
             )
             .into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "serde_json::Value"),
-            Self::StringConst { .. } => "String".into()
+            Self::StringConst { .. } => "String".into(),
         }
     }
 
@@ -673,7 +686,9 @@ impl FieldType {
     fn to_python_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
-            Self::Int16
+            Self::Int8
+            | Self::UInt8
+            | Self::Int16
             | Self::UInt16
             | Self::Int32
             | Self::UInt32
@@ -698,9 +713,10 @@ impl FieldType {
         match self {
             // _ => "String".into(),
             FieldType::Bool => "Boolean".into(),
-            FieldType::Int16 => "Short".into(),
-            FieldType::UInt16 | FieldType::UInt64 | FieldType::Int64 => "Long".into(),
+            FieldType::Int8 | FieldType::UInt8 => "Byte".into(),
+            FieldType::Int16 | FieldType::UInt16 => "Short".into(),
             FieldType::Int32 | FieldType::UInt32 => "Integer".into(),
+            FieldType::Int64 | FieldType::UInt64 => "Long".into(),
             FieldType::String => "String".into(),
             FieldType::DateTime => "OffsetDateTime".into(),
             FieldType::Uri => "URI".into(),
@@ -732,6 +748,8 @@ impl FieldType {
     fn to_phpdoc_typename(&self) -> Cow<'_, str> {
         match self {
             FieldType::Bool
+            | FieldType::Int8
+            | FieldType::UInt8
             | FieldType::Int16
             | FieldType::UInt16
             | FieldType::Int32
@@ -756,7 +774,9 @@ impl FieldType {
     fn to_php_typename(&self) -> Cow<'_, str> {
         match self {
             FieldType::Bool => "bool".into(),
-            FieldType::UInt16
+            FieldType::Int8
+            | FieldType::UInt8
+            | FieldType::UInt16
             | FieldType::Int16
             | FieldType::UInt64
             | FieldType::Int32
@@ -862,7 +882,9 @@ impl minijinja::value::Object for FieldType {
             "is_int_or_uint" => {
                 ensure_no_args(args, "is_int_or_uint")?;
                 let is_int_or_uint = match &**self {
-                    FieldType::Int16
+                    FieldType::Int8
+                    | FieldType::UInt8
+                    | FieldType::Int16
                     | FieldType::UInt16
                     | FieldType::Int32
                     | FieldType::UInt32
