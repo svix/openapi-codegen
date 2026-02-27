@@ -699,6 +699,7 @@ impl FieldType {
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt8) => "bytes".into(),
             Self::Set { inner } | Self::List { inner } => {
                 format!("t.List[{}]", inner.to_python_typename()).into()
             }
