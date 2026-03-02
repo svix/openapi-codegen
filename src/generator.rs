@@ -120,12 +120,13 @@ impl Generator<'_> {
     }
 
     fn generate_api_resources(self, api: &Api) -> anyhow::Result<Vec<Utf8PathBuf>> {
-        self.generate_api_resources_inner(api.resources.values())
+        self.generate_api_resources_inner(api.resources.values(), api)
     }
 
     fn generate_api_resources_inner<'a>(
         &self,
         resources: impl Iterator<Item = &'a Resource>,
+        api: &Api,
     ) -> anyhow::Result<Vec<Utf8PathBuf>> {
         let mut generated_paths = vec![];
 
@@ -133,10 +134,10 @@ impl Generator<'_> {
             let referenced_components = resource.referenced_components();
             generated_paths.extend_from_slice(&self.render_tpl(
                 Some(&resource.name),
-                context! { resource, referenced_components },
+                context! { api, resource, referenced_components },
             )?);
             generated_paths.extend_from_slice(
-                &self.generate_api_resources_inner(resource.subresources.values())?,
+                &self.generate_api_resources_inner(resource.subresources.values(), api)?,
             );
         }
 
