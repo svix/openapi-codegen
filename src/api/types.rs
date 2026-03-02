@@ -894,6 +894,13 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_list")?;
                 Ok(matches!(**self, Self::List { .. }).into())
             }
+            "is_bytes" => {
+                ensure_no_args(args, "is_list")?;
+                Ok(
+                    matches!(&**self, Self::List { inner } if matches!(**inner, Self::UInt8))
+                        .into(),
+                )
+            }
             "is_set" => {
                 ensure_no_args(args, "is_set")?;
                 Ok(matches!(**self, Self::Set { .. }).into())
