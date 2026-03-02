@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::{Context as _, bail, ensure};
 use schemars::schema::{ObjectValidation, Schema, SchemaObject};
 
@@ -85,7 +87,7 @@ fn get_content(variant: &ObjectValidation) -> anyhow::Result<(String, EnumVarian
     for (p_name, p) in &variant.properties {
         let schema_obj = get_schema_obj(p)?;
         if let Some(obj) = &schema_obj.object {
-            let ty = TypeData::from_object_schema(*obj.clone(), None)?;
+            let ty = TypeData::from_object_schema(*obj.clone(), BTreeMap::new(), None)?;
             let TypeData::Struct { fields } = ty else {
                 bail!("Expected obj to be a struct");
             };

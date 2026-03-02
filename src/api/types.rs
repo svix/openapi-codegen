@@ -96,7 +96,7 @@ impl Type {
             Some(SingleOrVec::Single(it)) => match *it {
                 InstanceType::Object => {
                     let obj = s.object.unwrap_or_default();
-                    TypeData::from_object_schema(*obj, s.subschemas)?
+                    TypeData::from_object_schema(*obj, s.extensions, s.subschemas)?
                 }
                 InstanceType::Integer => {
                     let enum_varnames = s
@@ -188,6 +188,7 @@ pub enum TypeData {
 impl TypeData {
     pub(super) fn from_object_schema(
         obj: ObjectValidation,
+        extensions: BTreeMap<String, serde_json::Value>,
         subschemas: Option<Box<SubschemaValidation>>,
     ) -> anyhow::Result<Self> {
         ensure!(
@@ -202,11 +203,17 @@ impl TypeData {
         );
         ensure!(obj.property_names.is_none(), "unsupported: propertyNames");
 
+        let x_positional = extensions
+            .get("x-positional")
+            .and_then(|ext| Some(ext.as_array()?.as_slice()))
+            .unwrap_or(&[]);
         let fields: Vec<_> = obj
             .properties
             .into_iter()
             .map(|(name, schema)| {
-                Field::from_schema(name.clone(), schema, obj.required.contains(&name))
+                let required = obj.required.contains(&name);
+                let positional = x_positional.iter().any(|p| *p == name);
+                Field::from_schema(name.clone(), schema, required, positional)
                     .with_context(|| format!("unsupported field `{name}`"))
             })
             .collect::<anyhow::Result<_>>()?;
@@ -315,12 +322,18 @@ pub struct Field {
     required: bool,
     nullable: bool,
     deprecated: bool,
+    positional: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     example: Option<serde_json::Value>,
 }
 
 impl Field {
-    fn from_schema(name: String, s: Schema, required: bool) -> anyhow::Result<Self> {
+    fn from_schema(
+        name: String,
+        s: Schema,
+        required: bool,
+        positional: bool,
+    ) -> anyhow::Result<Self> {
         let obj = match s {
             Schema::Bool(_) => bail!("unsupported bool schema"),
             Schema::Object(o) => o,
@@ -340,6 +353,7 @@ impl Field {
             description: metadata.description,
             required,
             nullable,
+            positional,
             deprecated: metadata.deprecated,
             example,
         })
