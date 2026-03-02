@@ -188,7 +188,7 @@ pub enum TypeData {
 impl TypeData {
     pub(super) fn from_object_schema(
         obj: ObjectValidation,
-        extensions: BTreeMap<String, serde_json::Value>,
+        extensions: schemars::Map<String, serde_json::Value>,
         subschemas: Option<Box<SubschemaValidation>>,
     ) -> anyhow::Result<Self> {
         ensure!(
