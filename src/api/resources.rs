@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Deref,
+};
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{Context as _, bail};
@@ -119,6 +122,19 @@ impl Resource {
         }
 
         res
+    }
+
+    pub(crate) fn referenced_components_direct(&self) -> impl Iterator<Item = &str> {
+        self.operations.iter().flat_map(|op| {
+            op.query_params
+                .iter()
+                .filter_map(|qp| match &qp.r#type {
+                    FieldType::SchemaRef { name, inner: None } => Some(name.as_str()),
+                    _ => None,
+                })
+                .chain(op.request_body_schema_name.iter().map(Deref::deref))
+                .chain(op.response_body_schema_name.iter().map(Deref::deref))
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
 
 use anyhow::{Context as _, bail};
 use camino::{Utf8Path, Utf8PathBuf};
@@ -101,7 +101,8 @@ impl Generator<'_> {
     ) -> anyhow::Result<Vec<Utf8PathBuf>> {
         let mut generated_paths = vec![];
         for resource in resources {
-            let referenced_components = resource.referenced_components();
+            let referenced_components: BTreeSet<_> =
+                resource.referenced_components_direct().collect();
             for operation in &resource.operations {
                 if operation.has_query_or_header_params() {
                     generated_paths.extend_from_slice(&self.render_tpl(
@@ -131,7 +132,8 @@ impl Generator<'_> {
         let mut generated_paths = vec![];
 
         for resource in resources {
-            let referenced_components = resource.referenced_components();
+            let referenced_components: BTreeSet<_> =
+                resource.referenced_components_direct().collect();
             generated_paths.extend_from_slice(&self.render_tpl(
                 Some(&resource.name),
                 context! { api, resource, referenced_components },
