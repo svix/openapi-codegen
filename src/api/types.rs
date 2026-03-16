@@ -92,8 +92,38 @@ pub struct Type {
 
 impl Type {
     pub(crate) fn from_schema(name: String, s: SchemaObject) -> anyhow::Result<Self> {
-        let data = match s.instance_type {
-            Some(SingleOrVec::Single(it)) => match *it {
+        let instance_type = match &s.instance_type {
+            Some(ty) => Some(ty),
+            None => {
+                let mut result = None;
+
+                for variant in s
+                    .subschemas
+                    .iter()
+                    .filter_map(|s| s.one_of.as_ref())
+                    .flatten()
+                {
+                    let Schema::Object(schema) = variant else {
+                        bail!("unsupported: boolean oneOf schema");
+                    };
+
+                    if let Some(ty) = &schema.instance_type {
+                        if let Some(res_ty) = result {
+                            if res_ty != ty {
+                                bail!("unsupported: oneOf schemas with different types");
+                            }
+                        } else {
+                            result = Some(ty);
+                        }
+                    }
+                }
+
+                result
+            }
+        };
+
+        let data = match instance_type {
+            Some(SingleOrVec::Single(it)) => match **it {
                 InstanceType::Object => {
                     let obj = s.object.unwrap_or_default();
                     TypeData::from_object_schema(*obj, s.extensions, s.subschemas)?
@@ -126,7 +156,7 @@ impl Type {
                 _ => bail!("unsupported type {it:?}"),
             },
             Some(SingleOrVec::Vec(_)) => bail!("unsupported: multiple types"),
-            None => bail!("unsupported: no type"),
+            None => bail!("unsupported: schema without a type"),
         };
 
         let metadata = s.metadata.unwrap_or_default();
