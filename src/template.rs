@@ -70,6 +70,9 @@ pub fn populate_env(
             None => s.into_owned(),
         },
     );
+    env.add_filter("remove_suffix", |s: Cow<'_, str>, suffix: Cow<'_, str>| {
+        Value::from(s.strip_suffix(&*suffix))
+    });
 
     // --- Case conversion ---
     env.add_filter("to_upper_snake_case", |s: Cow<'_, str>| {
