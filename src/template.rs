@@ -24,7 +24,52 @@ pub fn populate_env(
     // === Custom functions ===
     env.add_function("vec", crate::cli_v2::value_vec::new_value_vec);
 
+    env.add_function(
+        // allows overriding the summary filename
+        "set_summary_filename",
+        |state: &State, filename: Cow<'_, str>| {
+            state.set_temp("summary_filename", filename.into());
+        },
+    );
+
+    env.add_function(
+        // For java lib we need to create extra files.
+        "generate_extra_file",
+        |state: &State, filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
+            fs::write(&*filename, file_contents.as_bytes()).unwrap();
+            state.set_temp("extra_generated_file", filename.into());
+        },
+    );
+
+    env.add_function(
+        "panic",
+        |message: Cow<'_, str>| -> Result<String, minijinja::Error> {
+            Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                message.to_string(),
+            ))
+        },
+    );
+
     // === Custom filters ===
+
+    // --- String utilities ---
+    env.add_filter("strip_trailing_comma", |s: Cow<'_, str>| {
+        match s.trim_end().strip_suffix(",") {
+            Some(stripped) => stripped.to_string(),
+            None => s.into_owned(),
+        }
+    });
+    env.add_filter(
+        "strip_trailing_str",
+        |s: Cow<'_, str>, trailing_str: Cow<'_, str>| match s
+            .trim_end()
+            .strip_suffix(&trailing_str.to_string())
+        {
+            Some(stripped) => stripped.to_string(),
+            None => s.into_owned(),
+        },
+    );
 
     // --- Case conversion ---
     env.add_filter("to_upper_snake_case", |s: Cow<'_, str>| {
@@ -132,22 +177,6 @@ pub fn populate_env(
     );
 
     // --- Miscellaneous ---
-    env.add_filter("strip_trailing_comma", |s: Cow<'_, str>| {
-        match s.trim_end().strip_suffix(",") {
-            Some(stripped) => stripped.to_string(),
-            None => s.into_owned(),
-        }
-    });
-    env.add_filter(
-        "strip_trailing_str",
-        |s: Cow<'_, str>, trailing_str: Cow<'_, str>| match s
-            .trim_end()
-            .strip_suffix(&trailing_str.to_string())
-        {
-            Some(stripped) => stripped.to_string(),
-            None => s.into_owned(),
-        },
-    );
     env.add_filter(
         "generate_kt_path_str",
         |s: Cow<'_, str>, path_params: &Vec<Value>| -> Result<String, minijinja::Error> {
@@ -202,23 +231,6 @@ pub fn populate_env(
         },
     );
 
-    env.add_function(
-        // allows overriding the summary filename
-        "set_summary_filename",
-        |state: &State, filename: Cow<'_, str>| {
-            state.set_temp("summary_filename", filename.into());
-        },
-    );
-
-    env.add_function(
-        // For java lib we need to create extra files.
-        "generate_extra_file",
-        |state: &State, filename: Cow<'_, str>, file_contents: Cow<'_, str>| {
-            fs::write(&*filename, file_contents.as_bytes()).unwrap();
-            state.set_temp("extra_generated_file", filename.into());
-        },
-    );
-
     env.add_filter(
         "struct_enum_ref_variants",
         |variants: Vec<Value>| -> Result<Vec<Value>, minijinja::Error> {
@@ -252,16 +264,6 @@ pub fn populate_env(
         |s: Cow<'_, str>| -> Result<String, minijinja::Error> {
             let decoded: serde_json::Value = serde_json::from_str(&s).unwrap();
             Ok(serde_json::to_string_pretty(&decoded).unwrap())
-        },
-    );
-
-    env.add_function(
-        "panic",
-        |message: Cow<'_, str>| -> Result<String, minijinja::Error> {
-            Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                message.to_string(),
-            ))
         },
     );
 
