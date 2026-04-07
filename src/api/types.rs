@@ -672,6 +672,12 @@ impl FieldType {
             Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
+            Self::List { inner } if matches!(**inner, Self::Int8) => "Int8Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt8) => "Uint8Array".into(),
+            Self::List { inner } if matches!(**inner, Self::Int16) => "Int16Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt16) => "Uint16Array".into(),
+            Self::List { inner } if matches!(**inner, Self::Int32) => "Int32Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt32) => "Uint32Array".into(),
             Self::List { inner } | Self::Set { inner } => {
                 format!("{}[]", inner.to_js_typename()).into()
             }
