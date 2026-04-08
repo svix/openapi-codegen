@@ -453,6 +453,9 @@ pub enum FieldType {
         inner: Option<Type>,
     },
 
+    UnixTimestampMs,
+    DurationMs,
+
     /// A string constant, used as an enum discriminator value.
     StringConst {
         value: String,
@@ -489,7 +492,12 @@ impl FieldType {
                     // FIXME: Why do we have int in the spec?
                     Some("int" | "int64") => Self::Int64,
                     // FIXME: Get rid of uint in the spec..
-                    Some("uint" | "uint64") => Self::UInt64,
+                    Some("uint" | "uint64") => match obj.extensions.get("x-subtype") {
+                        Some(s) if s == "DurationMs" => Self::DurationMs,
+                        Some(s) if s == "UnixTimestampMs" => Self::UnixTimestampMs,
+                        Some(s) => bail!("Unknown subtype {s}"),
+                        None => Self::UInt64,
+                    },
                     f => bail!("unsupported integer format: `{f:?}`"),
                 },
                 InstanceType::String => {
@@ -608,6 +616,7 @@ impl FieldType {
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             Self::StringConst { .. } => "string".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "ulong".into(),
         }
     }
 
@@ -631,6 +640,7 @@ impl FieldType {
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "map[string]any"),
             Self::StringConst { .. } => "string".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "uint64".into(),
         }
     }
 
@@ -655,6 +665,7 @@ impl FieldType {
             Self::Set { inner } => format!("Set<{}>", inner.to_kotlin_typename()).into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "Map<String,Any>"),
             Self::StringConst { .. } => "String".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "ULong".into(),
         }
     }
 
@@ -686,6 +697,7 @@ impl FieldType {
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "any"),
             Self::StringConst { .. } => "string".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "number".into(),
         }
     }
 
@@ -715,6 +727,7 @@ impl FieldType {
             .into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "serde_json::Value"),
             Self::StringConst { .. } => "String".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "u64".into(),
         }
     }
 
@@ -757,6 +770,7 @@ impl FieldType {
                 format!("t.Dict[str, {}]", value_ty.to_python_typename()).into()
             }
             Self::StringConst { .. } => "str".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "int".into(),
         }
     }
 
@@ -782,6 +796,7 @@ impl FieldType {
             FieldType::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             // backwards compat
             FieldType::StringConst { .. } => "TypeEnum".into(),
+            FieldType::UnixTimestampMs | FieldType::DurationMs => "Long".into(),
         }
     }
 
@@ -812,7 +827,9 @@ impl FieldType {
             | FieldType::Uri
             | FieldType::JsonObject
             | FieldType::StringConst { .. }
-            | FieldType::SchemaRef { .. } => self.to_php_typename(),
+            | FieldType::SchemaRef { .. }
+            | FieldType::UnixTimestampMs
+            | FieldType::DurationMs => self.to_php_typename(),
             FieldType::Set { inner } | FieldType::List { inner } => {
                 format!("list<{}>", inner.to_phpdoc_typename()).into()
             }
@@ -841,6 +858,7 @@ impl FieldType {
             | FieldType::Set { .. }
             | FieldType::Map { .. } => "array".into(),
             FieldType::SchemaRef { name, .. } => name.clone().into(),
+            FieldType::UnixTimestampMs | FieldType::DurationMs => "int".into(),
         }
     }
 }
@@ -962,7 +980,9 @@ impl minijinja::value::Object for FieldType {
                     | FieldType::Set { .. }
                     | FieldType::Map { .. }
                     | FieldType::SchemaRef { .. }
-                    | FieldType::StringConst { .. } => false,
+                    | FieldType::StringConst { .. }
+                    | FieldType::UnixTimestampMs
+                    | FieldType::DurationMs => false,
                 };
                 Ok(is_int_or_uint.into())
             }
