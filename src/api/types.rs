@@ -955,6 +955,10 @@ impl minijinja::value::Object for FieldType {
                 ensure_no_args(args, "is_bool")?;
                 Ok(matches!(**self, Self::Bool).into())
             }
+            "is_timestamp" => {
+                ensure_no_args(args, "is_timestamp")?;
+                Ok(matches!(**self, Self::UnixTimestampMs).into())
+            }
             "is_u64" => {
                 ensure_no_args(args, "is_u64")?;
                 Ok(matches!(**self, Self::UInt64).into())
