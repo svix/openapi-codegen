@@ -322,6 +322,7 @@ pub struct Field {
     required: bool,
     nullable: bool,
     deprecated: bool,
+    #[serde(default)]
     positional: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     example: Option<serde_json::Value>,
