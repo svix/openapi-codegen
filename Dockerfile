@@ -51,7 +51,7 @@ RUN dotnet publish --framework net9.0 -o output \
     /p:PublishSingleFile=true Src/CSharpier.Cli
 
 # build goimports
-FROM docker.io/golang:1.24-alpine AS goimports-builder
+FROM docker.io/golang:1.25-alpine AS goimports-builder
 
 RUN go install golang.org/x/tools/cmd/goimports@latest
 
