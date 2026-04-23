@@ -13,7 +13,7 @@ fs-err = "3.0.0"
 heck = "0.5.0"
 indexmap = "2.7.0"
 itertools = "0.14.0"
-minijinja = { version = "2.8.0", features = ["loader"] }
+minijinja = { version = "2.8.0", features = ["json", "loader"] }
 ron = "0.10.1"
 schemars = "0.8.21"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
