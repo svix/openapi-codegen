@@ -36,14 +36,13 @@ RUN echo "${RUBYFMT_SHA256} rubyfmt.tar.gz" > rubyfmt.tar.gz.sha256 && \
 
 
 # build csharpier
-FROM alpine:3.21 AS csharpier-builder
+FROM alpine:3.23 AS csharpier-builder
 ARG DOTNET_PLATFORM="linux-musl-amd64"
 WORKDIR /app
-RUN apk add --no-cache git dotnet9-sdk
+RUN apk add --no-cache git dotnet10-sdk
 
-# this is csharpier v1.0.1
 RUN git clone https://github.com/belav/csharpier /app && \
-    git checkout 488679295cf50e84e6cac15f308d7e5a362c245c
+    git checkout tags/1.2.6
 
 RUN dotnet publish --framework net9.0 -o output \
     -r ${DOTNET_PLATFORM} /p:StripSymbols=true \
