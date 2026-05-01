@@ -419,6 +419,7 @@ pub struct SimpleVariant {
 #[serde(tag = "id")]
 pub enum FieldType {
     Bool,
+    Float64,
     Int8,
     UInt8,
     Int16,
@@ -499,6 +500,10 @@ impl FieldType {
                         None => Self::UInt64,
                     },
                     f => bail!("unsupported integer format: `{f:?}`"),
+                },
+                InstanceType::Number => match obj.format.as_deref() {
+                    Some("double") => Self::Float64,
+                    f => bail!("unsupported number format: `{f:?}`"),
                 },
                 InstanceType::String => {
                     // String consts are the only const / enum values we support, for now.
@@ -596,6 +601,7 @@ impl FieldType {
     fn to_csharp_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Float64 => "double".into(),
             Self::Int8 => "sbyte".into(),
             Self::UInt8 => "byte".into(),
             Self::Int16 => "short".into(),
@@ -623,6 +629,7 @@ impl FieldType {
     fn to_go_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Float64 => "float64".into(),
             Self::Int8 => "int8".into(),
             Self::UInt8 => "uint8".into(),
             Self::Int16 => "int16".into(),
@@ -647,6 +654,7 @@ impl FieldType {
     fn to_kotlin_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "Boolean".into(),
+            Self::Float64 => "Double".into(),
             Self::Int8 => "Byte".into(),
             Self::UInt8 => "UByte".into(),
             Self::Int16 => "Short".into(),
@@ -679,7 +687,8 @@ impl FieldType {
             | Self::Int32
             | Self::UInt32
             | Self::Int64
-            | Self::UInt64 => "number".into(),
+            | Self::UInt64
+            | Self::Float64 => "number".into(),
             Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
@@ -704,6 +713,7 @@ impl FieldType {
     fn to_rust_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Float64 => "f64".into(),
             Self::Int8 => "i8".into(),
             Self::UInt8 => "u8".into(),
             Self::Int16 => "i16".into(),
@@ -749,6 +759,7 @@ impl FieldType {
     fn to_python_typename(&self) -> Cow<'_, str> {
         match self {
             Self::Bool => "bool".into(),
+            Self::Float64 => "float".into(),
             Self::Int8
             | Self::UInt8
             | Self::Int16
@@ -778,6 +789,7 @@ impl FieldType {
         match self {
             // _ => "String".into(),
             FieldType::Bool => "Boolean".into(),
+            Self::Float64 => "Double".into(),
             FieldType::Int8 | FieldType::UInt8 => "Byte".into(),
             FieldType::Int16 | FieldType::UInt16 => "Short".into(),
             FieldType::Int32 | FieldType::UInt32 => "Integer".into(),
@@ -814,6 +826,7 @@ impl FieldType {
     fn to_phpdoc_typename(&self) -> Cow<'_, str> {
         match self {
             FieldType::Bool
+            | FieldType::Float64
             | FieldType::Int8
             | FieldType::UInt8
             | FieldType::Int16
@@ -842,6 +855,7 @@ impl FieldType {
     fn to_php_typename(&self) -> Cow<'_, str> {
         match self {
             FieldType::Bool => "bool".into(),
+            FieldType::Float64 => "double".into(),
             FieldType::Int8
             | FieldType::UInt8
             | FieldType::UInt16
@@ -980,6 +994,7 @@ impl minijinja::value::Object for FieldType {
                     | FieldType::UInt64 => true,
 
                     FieldType::Bool
+                    | FieldType::Float64
                     | FieldType::String
                     | FieldType::DateTime
                     | FieldType::Uri
