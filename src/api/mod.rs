@@ -35,7 +35,6 @@ impl Api {
     ) -> anyhow::Result<Self> {
         let resources = resources::from_openapi(
             paths,
-            &components.schemas,
             include_mode,
             excluded_operations,
             specified_operations,
