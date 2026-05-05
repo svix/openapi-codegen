@@ -26,16 +26,14 @@ use crate::{api::Api, generator::generate};
 #[derive(Parser)]
 struct CliArgs {
     /// Which operations to include.
-    #[arg(global = true, long, value_enum, default_value_t = IncludeMode::OnlyPublic)]
+    #[arg(global = true, long, value_enum, default_value_t = IncludeMode::Public)]
     include_mode: IncludeMode,
 
     /// Ignore a specified operation id
     #[arg(global = true, short, long = "exclude-op-id")]
     excluded_operations: Vec<String>,
 
-    /// Only include specified operations
-    ///
-    /// This option only works with `--include-mode=only-specified`.
+    /// Include specified operations
     ///
     /// Use this option, to run the codegen with a limited set of operations.
     /// Op webhook models will be excluded from the generation
@@ -77,12 +75,12 @@ enum Command {
 #[derive(Copy, Clone, clap::ValueEnum)]
 #[clap(rename_all = "kebab-case")]
 pub enum IncludeMode {
-    /// Only public options
-    OnlyPublic,
+    /// Public operations and operations specified in `--include-op-id`
+    Public,
     /// Both public operations and operations marked with `x-internal`
     PublicAndInternal,
-    /// Only operations marked with `x-internal`
-    OnlyInternal,
+    /// Only operations marked with `x-internal` and operations specified in `--include-op-id`
+    Internal,
     /// Only operations that were specified in `--include-op-id`
     OnlySpecified,
 }
