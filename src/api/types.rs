@@ -782,36 +782,35 @@ impl FieldType {
 
     fn to_java_typename(&self) -> Cow<'_, str> {
         match self {
-            // _ => "String".into(),
-            FieldType::Bool => "Boolean".into(),
+            Self::Bool => "Boolean".into(),
             Self::Float64 => "Double".into(),
-            FieldType::Int8 | FieldType::UInt8 => "Byte".into(),
-            FieldType::Int16 => "Short".into(),
-            FieldType::Int32 | FieldType::UInt32 => "Integer".into(),
-            FieldType::UInt16 // FIXME: change when backwards compat can be broken
-            | FieldType::UInt64 | FieldType::Int64 => "Long".into(),
-            FieldType::String => "String".into(),
-            FieldType::DateTime => "OffsetDateTime".into(),
-            FieldType::Uri => "URI".into(),
-            FieldType::JsonObject => "Object".into(),
-            FieldType::List { inner } => format!("List<{}>", inner.to_java_typename()).into(),
-            FieldType::Set { inner: field_type } => {
+            Self::Int8 | Self::UInt8 => "Byte".into(),
+            Self::Int16 => "Short".into(),
+            Self::Int32 | Self::UInt32 => "Integer".into(),
+            Self::UInt16 // FIXME: change when backwards compat can be broken
+            | Self::UInt64 | Self::Int64 => "Long".into(),
+            Self::String => "String".into(),
+            Self::DateTime => "OffsetDateTime".into(),
+            Self::Uri => "URI".into(),
+            Self::JsonObject => "Object".into(),
+            Self::List { inner } => format!("List<{}>", inner.to_java_typename()).into(),
+            Self::Set { inner: field_type } => {
                 format!("Set<{}>", field_type.to_java_typename()).into()
             }
-            FieldType::Map { value_ty } => {
+            Self::Map { value_ty } => {
                 format!("Map<String,{}>", value_ty.to_java_typename()).into()
             }
-            FieldType::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             // backwards compat
-            FieldType::StringConst { .. } => "TypeEnum".into(),
-            FieldType::UnixTimestampMs | FieldType::DurationMs => "Long".into(),
+            Self::StringConst { .. } => "TypeEnum".into(),
+            Self::UnixTimestampMs | Self::DurationMs => "Long".into(),
         }
     }
 
     fn to_ruby_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::SchemaRef { name, .. } => name.clone().into(),
-            FieldType::StringConst { .. } => {
+            Self::SchemaRef { name, .. } => name.clone().into(),
+            Self::StringConst { .. } => {
                 unreachable!("FieldType::const should never be exposed to template code")
             }
             _ => panic!("types? in ruby?!?!, not on my watch!"),
@@ -821,28 +820,28 @@ impl FieldType {
     /// returns `PHPDoc` annotations
     fn to_phpdoc_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::Bool
-            | FieldType::Float64
-            | FieldType::Int8
-            | FieldType::UInt8
-            | FieldType::Int16
-            | FieldType::UInt16
-            | FieldType::Int32
-            | FieldType::UInt32
-            | FieldType::Int64
-            | FieldType::UInt64
-            | FieldType::String
-            | FieldType::DateTime
-            | FieldType::Uri
-            | FieldType::JsonObject
-            | FieldType::StringConst { .. }
-            | FieldType::SchemaRef { .. }
-            | FieldType::UnixTimestampMs
-            | FieldType::DurationMs => self.to_php_typename(),
-            FieldType::Set { inner } | FieldType::List { inner } => {
+            Self::Bool
+            | Self::Float64
+            | Self::Int8
+            | Self::UInt8
+            | Self::Int16
+            | Self::UInt16
+            | Self::Int32
+            | Self::UInt32
+            | Self::Int64
+            | Self::UInt64
+            | Self::String
+            | Self::DateTime
+            | Self::Uri
+            | Self::JsonObject
+            | Self::StringConst { .. }
+            | Self::SchemaRef { .. }
+            | Self::UnixTimestampMs
+            | Self::DurationMs => self.to_php_typename(),
+            Self::Set { inner } | Self::List { inner } => {
                 format!("list<{}>", inner.to_phpdoc_typename()).into()
             }
-            FieldType::Map { value_ty } => {
+            Self::Map { value_ty } => {
                 format!("array<string, {}>", value_ty.to_phpdoc_typename()).into()
             }
         }
@@ -850,25 +849,24 @@ impl FieldType {
 
     fn to_php_typename(&self) -> Cow<'_, str> {
         match self {
-            FieldType::Bool => "bool".into(),
-            FieldType::Float64 => "double".into(),
-            FieldType::Int8
-            | FieldType::UInt8
-            | FieldType::UInt16
-            | FieldType::Int16
-            | FieldType::UInt64
-            | FieldType::Int32
-            | FieldType::UInt32
-            | FieldType::Int64 => "int".into(),
-            FieldType::Uri | FieldType::StringConst { .. } | FieldType::String => "string".into(),
-            FieldType::DateTime => r#"\DateTimeImmutable"#.into(),
+            Self::Bool => "bool".into(),
+            Self::Float64 => "double".into(),
+            Self::Int8
+            | Self::UInt8
+            | Self::UInt16
+            | Self::Int16
+            | Self::UInt64
+            | Self::Int32
+            | Self::UInt32
+            | Self::Int64 => "int".into(),
+            Self::Uri | Self::StringConst { .. } | Self::String => "string".into(),
+            Self::DateTime => r#"\DateTimeImmutable"#.into(),
 
-            FieldType::JsonObject
-            | FieldType::List { .. }
-            | FieldType::Set { .. }
-            | FieldType::Map { .. } => "array".into(),
-            FieldType::SchemaRef { name, .. } => name.clone().into(),
-            FieldType::UnixTimestampMs | FieldType::DurationMs => "int".into(),
+            Self::JsonObject | Self::List { .. } | Self::Set { .. } | Self::Map { .. } => {
+                "array".into()
+            }
+            Self::SchemaRef { name, .. } => name.clone().into(),
+            Self::UnixTimestampMs | Self::DurationMs => "int".into(),
         }
     }
 }
