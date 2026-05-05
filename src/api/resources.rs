@@ -196,12 +196,12 @@ impl Operation {
             .extensions
             .get("x-internal")
             .is_some_and(|val| val == true);
+        let is_specified = specified_operations.contains(&op_id);
         let include_operation = match include_mode {
-            IncludeMode::OnlyPublic => !x_internal,
+            IncludeMode::Public => !x_internal || is_specified,
             IncludeMode::PublicAndInternal => true,
-            IncludeMode::OnlyInternal => x_internal,
-            IncludeMode::OnlySpecified => specified_operations.contains(&op_id),
-            IncludeMode::PublicAndSpecified => !x_internal || specified_operations.contains(&op_id),
+            IncludeMode::Internal => x_internal || is_specified,
+            IncludeMode::OnlySpecified => is_specified,
         };
         if !include_operation || excluded_operations.contains(&op_id) {
             return None;
