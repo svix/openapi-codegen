@@ -35,7 +35,7 @@ struct CliArgs {
 
     /// Only include specified operations
     ///
-    /// This option only works with `--include-mode=only-specified`.
+    /// This option only works with `--include-mode=only-specified` or `--include-mode=public-and-specified`.
     ///
     /// Use this option, to run the codegen with a limited set of operations.
     /// Op webhook models will be excluded from the generation
@@ -85,6 +85,8 @@ pub enum IncludeMode {
     OnlyInternal,
     /// Only operations that were specified in `--include-op-id`
     OnlySpecified,
+    /// Both public operations and operations specified in `--include-op-id`
+    PublicAndSpecified,
 }
 
 pub fn run_cli_v1_main() -> anyhow::Result<()> {

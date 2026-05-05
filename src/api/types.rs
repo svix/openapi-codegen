@@ -31,9 +31,10 @@ pub(crate) fn from_referenced_components(
     include_mode: IncludeMode,
 ) -> Types {
     let mut referenced_components: Vec<&str> = match include_mode {
-        IncludeMode::OnlyPublic | IncludeMode::PublicAndInternal | IncludeMode::OnlyInternal => {
-            webhooks.iter().map(|s| &**s).collect()
-        }
+        IncludeMode::OnlyPublic
+        | IncludeMode::PublicAndInternal
+        | IncludeMode::OnlyInternal
+        | IncludeMode::PublicAndSpecified => webhooks.iter().map(|s| &**s).collect(),
         IncludeMode::OnlySpecified => vec![],
     };
     referenced_components.extend(resources::referenced_components(res));

@@ -201,6 +201,7 @@ impl Operation {
             IncludeMode::PublicAndInternal => true,
             IncludeMode::OnlyInternal => x_internal,
             IncludeMode::OnlySpecified => specified_operations.contains(&op_id),
+            IncludeMode::PublicAndSpecified => !x_internal || specified_operations.contains(&op_id),
         };
         if !include_operation || excluded_operations.contains(&op_id) {
             return None;
