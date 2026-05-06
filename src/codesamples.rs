@@ -16,7 +16,6 @@ use crate::{
 use aide::openapi::OpenApi;
 use anyhow::Context;
 use minijinja::{Value, context};
-use serde::Serialize;
 
 fn codesample_env(
     path_param_to_example: Arc<fn(String) -> String>,
@@ -112,7 +111,6 @@ fn generate_sample(
             source,
             label,
             formatting_lang,
-            lang_name,
         } in &templates.templates
         {
             let req_body_ty = operation
@@ -123,7 +121,6 @@ fn generate_sample(
 
             let codesample = env.render_str(source, ctx).unwrap();
             let sample = CodeSample {
-                lang: lang_name.to_string(),
                 source: codesample,
                 formatting_lang: *formatting_lang,
                 op_id: operation.id.clone(),
@@ -150,21 +147,17 @@ fn generate_sample(
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug)]
 pub struct CodeSample {
     pub source: String,
-    pub lang: String,
     pub label: String,
-    #[serde(skip)]
     pub op_id: String,
-    #[serde(skip)]
     pub formatting_lang: CodegenLanguage,
 }
 
 struct SampleTemplate {
     source: String,
     label: String,
-    lang_name: String,
     formatting_lang: CodegenLanguage,
 }
 
@@ -174,18 +167,16 @@ pub struct CodesampleTemplates {
 }
 
 impl CodesampleTemplates {
-    pub fn add_template<S: AsRef<str>>(
+    pub fn add_template(
         &mut self,
-        label: S,
-        lang_name: S,
+        label: impl Into<String>,
         formatting_lang: CodegenLanguage,
-        source: S,
+        source: impl Into<String>,
     ) {
         self.templates.push(SampleTemplate {
             formatting_lang,
-            lang_name: lang_name.as_ref().to_string(),
-            label: label.as_ref().to_string(),
-            source: source.as_ref().to_string(),
+            label: label.into(),
+            source: source.into(),
         });
     }
 }
