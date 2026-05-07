@@ -16,6 +16,7 @@ use crate::{
 use aide::openapi::OpenApi;
 use anyhow::Context;
 use minijinja::{Value, context};
+use serde::{Serialize, Serializer};
 
 fn codesample_env(
     path_param_to_example: Arc<fn(String) -> String>,
@@ -110,8 +111,8 @@ fn generate_sample(
         for SampleTemplate {
             source,
             label,
-            formatting_lang,
-        } in &templates.templates
+            lang,
+        } in templates.templates.iter().cloned()
         {
             let req_body_ty = operation
                 .request_body_schema_name
@@ -119,23 +120,15 @@ fn generate_sample(
                 .map(|req_body_name| recursively_resolve_type(req_body_name, api));
             let ctx = context! { operation, resource_parents, req_body_ty };
 
-            let codesample = env.render_str(source, ctx).unwrap();
+            let codesample = env.render_str(&source, ctx).unwrap();
             let sample = CodeSample {
                 source: codesample,
-                formatting_lang: *formatting_lang,
+                lang,
                 op_id: operation.id.clone(),
                 label: label.clone(),
             };
 
-            let lang_vec = match samples_map.get_mut(formatting_lang) {
-                Some(v) => v,
-                None => {
-                    samples_map.insert(*formatting_lang, vec![]);
-                    samples_map.get_mut(formatting_lang).unwrap()
-                }
-            };
-
-            lang_vec.push(sample);
+            samples_map.entry(lang).or_default().push(sample);
         }
     }
 
@@ -147,18 +140,46 @@ fn generate_sample(
     }
 }
 
-#[derive(Debug)]
+/// `x-codeSamples` entry.
+///
+/// This format is understood by many OpenAPI documentation renderers.
+#[derive(Debug, Serialize)]
 pub struct CodeSample {
-    pub source: String,
-    pub label: String,
+    #[serde(skip)]
     pub op_id: String,
-    pub formatting_lang: CodegenLanguage,
+    #[serde(serialize_with = "serialize_codegen_language")]
+    pub lang: CodegenLanguage,
+    pub label: String,
+    pub source: String,
 }
 
+fn serialize_codegen_language<S>(lang: &CodegenLanguage, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Redocly's documentation links to the GitHub linguish list for this:
+    // https://github.com/github-linguist/linguist/blob/main/lib/linguist/popular.yml
+    let lang = match lang {
+        CodegenLanguage::Python => "Python",
+        CodegenLanguage::Rust => "Rust",
+        CodegenLanguage::Go => "Go",
+        CodegenLanguage::Kotlin => "Kotlin",
+        CodegenLanguage::CSharp => "C#",
+        CodegenLanguage::Java => "Java",
+        CodegenLanguage::TypeScript => "TypeScript",
+        CodegenLanguage::Ruby => "Ruby",
+        CodegenLanguage::Php => "PHP",
+        CodegenLanguage::Shell => "Shell",
+        CodegenLanguage::Unknown => "unknown",
+    };
+    serializer.serialize_str(lang)
+}
+
+#[derive(Clone)]
 struct SampleTemplate {
     source: String,
     label: String,
-    formatting_lang: CodegenLanguage,
+    lang: CodegenLanguage,
 }
 
 #[derive(Default)]
@@ -169,12 +190,12 @@ pub struct CodesampleTemplates {
 impl CodesampleTemplates {
     pub fn add_template(
         &mut self,
+        lang: CodegenLanguage,
         label: impl Into<String>,
-        formatting_lang: CodegenLanguage,
         source: impl Into<String>,
     ) {
         self.templates.push(SampleTemplate {
-            formatting_lang,
+            lang,
             label: label.into(),
             source: source.into(),
         });
