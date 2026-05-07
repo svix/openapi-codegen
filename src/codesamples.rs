@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map},
     sync::Arc,
 };
 
@@ -99,44 +99,48 @@ fn recursively_resolve_type(ty_name: &str, api: &Api) -> Type {
     ty
 }
 
-fn generate_sample(
+fn gen_samples_for_resource(
     env: &minijinja::Environment<'static>,
-    samples_map: &mut BTreeMap<CodegenLanguage, Vec<CodeSample>>,
+    samples_map: &mut BTreeMap<String, Vec<CodeSample>>,
     api: &Api,
     resource: &Resource,
     resource_parents: &Vec<String>,
     templates: &CodesampleTemplates,
 ) {
     for operation in &resource.operations {
-        for SampleTemplate {
-            source,
-            label,
-            lang,
-        } in templates.templates.iter().cloned()
-        {
-            let req_body_ty = operation
-                .request_body_schema_name
-                .as_ref()
-                .map(|req_body_name| recursively_resolve_type(req_body_name, api));
-            let ctx = context! { operation, resource_parents, req_body_ty };
+        let btree_map::Entry::Vacant(map_entry) = samples_map.entry(operation.id.clone()) else {
+            tracing::error!(operation.id, "duplicate operation ID?");
+            continue;
+        };
 
-            let codesample = env.render_str(&source, ctx).unwrap();
-            let sample = CodeSample {
-                source: codesample,
-                lang,
-                op_id: operation.id.clone(),
-                label: label.clone(),
-            };
+        let samples = templates
+            .templates
+            .iter()
+            .cloned()
+            .map(|tpl| {
+                let req_body_ty = operation
+                    .request_body_schema_name
+                    .as_ref()
+                    .map(|req_body_name| recursively_resolve_type(req_body_name, api));
+                let ctx = context! { operation, resource_parents, req_body_ty };
 
-            samples_map.entry(lang).or_default().push(sample);
-        }
+                let codesample = env.render_str(&tpl.source, ctx).unwrap();
+                CodeSample {
+                    source: codesample,
+                    lang: tpl.lang,
+                    label: tpl.label,
+                }
+            })
+            .collect();
+
+        map_entry.insert(samples);
     }
 
     for (subresource_name, subresource) in &resource.subresources {
         let mut new_parents = resource_parents.clone();
         new_parents.push(subresource_name.clone());
 
-        generate_sample(env, samples_map, api, subresource, &new_parents, templates);
+        gen_samples_for_resource(env, samples_map, api, subresource, &new_parents, templates);
     }
 }
 
@@ -145,8 +149,6 @@ fn generate_sample(
 /// This format is understood by many OpenAPI documentation renderers.
 #[derive(Debug, Serialize)]
 pub struct CodeSample {
-    #[serde(skip)]
-    pub op_id: String,
     #[serde(serialize_with = "serialize_codegen_language")]
     pub lang: CodegenLanguage,
     pub label: String,
@@ -202,12 +204,15 @@ impl CodesampleTemplates {
     }
 }
 
+/// Generate code samples.
+///
+/// Returns a map of `{ operation ID => code samples }`.
 pub async fn generate_codesamples(
     openapi_spec: &OpenApi,
     templates: CodesampleTemplates,
     excluded_operation_ids: BTreeSet<String>,
     path_param_example: fn(String) -> String,
-) -> anyhow::Result<BTreeMap<CodegenLanguage, Vec<CodeSample>>> {
+) -> anyhow::Result<BTreeMap<String, Vec<CodeSample>>> {
     let api_ir = crate::api::Api::new(
         openapi_spec
             .paths
@@ -225,7 +230,7 @@ pub async fn generate_codesamples(
     let env = codesample_env(Arc::new(path_param_example))?;
 
     for (resource_name, resource) in &api_ir.resources {
-        generate_sample(
+        gen_samples_for_resource(
             &env,
             &mut samples_map,
             &api_ir,
