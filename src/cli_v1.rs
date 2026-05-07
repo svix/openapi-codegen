@@ -13,7 +13,6 @@ use anyhow::{Context as _, bail};
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
 use fs_err::{self as fs};
-use schemars::schema::Schema;
 use tempfile::TempDir;
 use tracing::{Event, Level};
 use tracing_subscriber::{
@@ -220,8 +219,8 @@ fn get_webhooks(spec: &OpenApi) -> Vec<String> {
                 && let Some(item) = body.as_item()
                 && let Some(json_content) = item.content.get("application/json")
                 && let Some(schema) = &json_content.schema
-                && let Schema::Object(obj) = &schema.json_schema
-                && let Some(reference) = &obj.reference
+                && let Some(reference_v) = &schema.json_schema.get("$ref")
+                && let Some(reference) = reference_v.as_str()
                 && let Some(component_name) = reference.split('/').next_back()
             {
                 referenced_components.insert(component_name.to_owned());

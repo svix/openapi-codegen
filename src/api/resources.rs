@@ -5,7 +5,6 @@ use std::{
 
 use aide::openapi::{self, ReferenceOr};
 use anyhow::{Context as _, bail};
-use schemars::schema::{InstanceType, Schema};
 use serde::{Deserialize, Serialize};
 
 use crate::cli_v1::IncludeMode;
@@ -315,18 +314,7 @@ impl Operation {
                     .swap_remove("application/json")
                     .expect("should have JSON body");
                 assert!(json_body.extensions.is_empty());
-                match json_body.schema.expect("no json body schema?!").json_schema {
-                    Schema::Bool(_) => {
-                        tracing::error!("unexpected bool schema");
-                        None
-                    }
-                    Schema::Object(obj) => {
-                        if !obj.is_ref() {
-                            tracing::error!(?obj, "unexpected non-$ref json body schema");
-                        }
-                        get_schema_name(obj.reference.as_deref())
-                    }
-                }
+                get_body_schema_name(json_body)
             }
             ReferenceOr::Reference { .. } => {
                 tracing::error!("$ref request bodies are not currently supported");
@@ -387,15 +375,35 @@ impl Operation {
     }
 }
 
+fn get_body_schema_name(json_body: openapi::MediaType) -> Option<String> {
+    let Some(schema_object) = json_body.schema else {
+        tracing::error!("missing json body schema");
+        return None;
+    };
+    let Some(obj) = schema_object.json_schema.as_object() else {
+        tracing::error!("unexpected bool schema");
+        return None;
+    };
+
+    match obj.get("$ref") {
+        Some(reference) => get_schema_name(reference.as_str()),
+        None => {
+            tracing::error!(?obj, "unexpected non-$ref json body schema");
+            None
+        }
+    }
+}
+
 fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::Result<()> {
     let openapi::ParameterSchemaOrContent::Schema(s) = &parameter_data.format else {
         bail!("found unexpected 'content' data format");
     };
-    let Schema::Object(obj) = &s.json_schema else {
-        bail!("found unexpected `true` schema");
-    };
-    if obj.instance_type != Some(InstanceType::String.into()) {
-        bail!("unsupported path parameter type `{:?}`", obj.instance_type);
+    let ty = s
+        .json_schema
+        .get("type")
+        .context("missing path parameter type")?;
+    if ty != "string" {
+        bail!("unsupported path parameter type `{ty:?}`");
     }
 
     Ok(())
@@ -415,18 +423,7 @@ fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<Str
                 .swap_remove("application/json")
                 .expect("should have JSON body");
             assert!(json_body.extensions.is_empty());
-            match json_body.schema.expect("no json body schema?!").json_schema {
-                Schema::Bool(_) => {
-                    tracing::error!("unexpected bool schema");
-                    None
-                }
-                Schema::Object(obj) => {
-                    if !obj.is_ref() {
-                        tracing::error!(?obj, "unexpected non-$ref json body schema");
-                    }
-                    get_schema_name(obj.reference.as_deref())
-                }
-            }
+            get_body_schema_name(json_body)
         }
         ReferenceOr::Reference { .. } => {
             tracing::error!("$ref response bodies are not currently supported");
