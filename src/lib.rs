@@ -5,6 +5,10 @@ mod codesamples;
 mod generator;
 mod postprocessing;
 mod template;
+mod utils;
+
+type JsonValue = serde_json::Value;
+type JsonObject = serde_json::Map<String, JsonValue>;
 
 pub use crate::{
     cli_v1::{IncludeMode, run_cli_v1_main},

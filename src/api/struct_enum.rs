@@ -1,9 +1,12 @@
 use anyhow::{Context as _, bail, ensure};
-use schemars::schema::{ObjectValidation, Schema, SchemaObject};
 
-use crate::api::{
-    get_schema_name,
-    types::{EnumVariantType, Field, SimpleVariant, StructEnumRepr, TypeData},
+use crate::{
+    JsonValue,
+    api::{
+        get_schema_name,
+        types::{EnumVariantType, Field, SimpleVariant, StructEnumRepr, TypeData},
+    },
+    utils::get_properties,
 };
 
 /// A wrapper around a Option<String>
@@ -25,23 +28,25 @@ impl SameString {
 }
 
 impl TypeData {
-    pub(super) fn inline_struct_enum(one_of: &[Schema], fields: &[Field]) -> anyhow::Result<Self> {
+    pub(super) fn inline_struct_enum(one_of: &JsonValue, fields: &[Field]) -> anyhow::Result<Self> {
+        let one_of = one_of.as_array().context("oneOf must be an array")?;
+
         let mut discriminator_field = SameString(None);
         let mut content_field = SameString(None);
         let mut variants = vec![];
 
-        let mut process_one_of = |s: &Schema| {
-            let variant = get_obj_validation(s)?;
-
-            let (variant_discriminator_name, discriminator) = get_discriminator(variant)?;
+        let mut process_one_of = |variant: &JsonValue| {
+            let (variant_discriminator_name, discriminator) =
+                get_discriminator(variant).context("get struct-enum discriminator")?;
             discriminator_field.update(variant_discriminator_name)?;
 
-            let len = variant.properties.len();
+            let properties = get_properties(variant).context("get struct-enum properties")?;
+            let len = properties.len();
             ensure!(
                 (1..=2).contains(&len),
                 "Found struct enum variant with {len} properties, expected 1 or 2"
             );
-            if variant.properties.len() == 1 {
+            if properties.len() == 1 {
                 variants.push(SimpleVariant {
                     name: discriminator,
                     content: EnumVariantType::Ref {
@@ -50,7 +55,8 @@ impl TypeData {
                     },
                 });
             } else {
-                let (variant_content_field, content) = get_content(variant)?;
+                let (variant_content_field, content) =
+                    get_content(variant).context("get struct-enum content")?;
                 content_field.update(variant_content_field)?;
 
                 variants.push(SimpleVariant {
@@ -81,23 +87,20 @@ impl TypeData {
     }
 }
 
-fn get_content(variant: &ObjectValidation) -> anyhow::Result<(String, EnumVariantType)> {
-    for (p_name, p) in &variant.properties {
-        let schema_obj = get_schema_obj(p)?;
-        if let Some(obj) = &schema_obj.object {
-            let ty = TypeData::from_object_schema(*obj.clone(), schemars::Map::new(), None)?;
+fn get_content(variant: &JsonValue) -> anyhow::Result<(String, EnumVariantType)> {
+    for (prop_name, prop_schema) in get_properties(variant)? {
+        if prop_schema["type"] == "object" {
+            let ty = TypeData::from_object_schema(prop_schema)?;
             let TypeData::Struct { fields } = ty else {
                 bail!("Expected obj to be a struct");
             };
 
-            return Ok((p_name.to_owned(), EnumVariantType::Struct { fields }));
-        }
-
-        if let Some(schema_ref) = &schema_obj.reference {
+            return Ok((prop_name.to_owned(), EnumVariantType::Struct { fields }));
+        } else if let Some(reference) = prop_schema["$ref"].as_str() {
             return Ok((
-                p_name.to_owned(),
+                prop_name.to_owned(),
                 EnumVariantType::Ref {
-                    schema_ref: Some(get_schema_name(Some(schema_ref.as_str())).unwrap()),
+                    schema_ref: Some(get_schema_name(reference).unwrap()),
                     inner: None,
                 },
             ));
@@ -107,22 +110,21 @@ fn get_content(variant: &ObjectValidation) -> anyhow::Result<(String, EnumVarian
     bail!("Failed to find content on struct enum")
 }
 
-fn get_discriminator(obj: &ObjectValidation) -> anyhow::Result<(String, String)> {
+fn get_discriminator(obj: &JsonValue) -> anyhow::Result<(String, String)> {
     let mut discriminator_field_name = None;
     let mut discriminator = None;
 
-    for (p_name, p) in &obj.properties {
-        let schema_obj = get_schema_obj(p).with_context(|| p_name.to_owned())?;
-        if let Some(enum_vals) = &schema_obj.enum_values
-            && enum_vals.len() == 1
+    for (prop_name, prop_schema) in get_properties(obj)? {
+        if let Some(enum_value) = &prop_schema.get("enum")
+            && let Some(enum_list) = enum_value.as_array()
+            && let [value] = enum_list.as_slice()
         {
-            match &enum_vals[0].as_str() {
-                Some(v) => {
-                    discriminator_field_name = Some(p_name.clone());
-                    discriminator = Some((*v).to_owned());
-                }
-                None => bail!("Expected discriminator field name to be a string"),
-            }
+            let value = value
+                .as_str()
+                .context("Expected discriminator field name to be a string")?;
+
+            discriminator_field_name = Some(prop_name.clone());
+            discriminator = Some(value.to_owned());
         }
     }
 
@@ -134,18 +136,4 @@ fn get_discriminator(obj: &ObjectValidation) -> anyhow::Result<(String, String)>
     };
 
     Ok((discriminator_field_name, discriminator))
-}
-
-fn get_schema_obj(s: &Schema) -> anyhow::Result<&SchemaObject> {
-    match s {
-        Schema::Bool(_) => bail!("unsupported bool schema"),
-        Schema::Object(o) => Ok(o),
-    }
-}
-
-fn get_obj_validation(s: &Schema) -> anyhow::Result<&ObjectValidation> {
-    let Some(obj) = get_schema_obj(s)?.object.as_ref() else {
-        bail!("unsupported: object type without further validation");
-    };
-    Ok(obj)
 }

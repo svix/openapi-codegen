@@ -108,8 +108,8 @@ fn merge_types(dst: &mut Types, src: Types) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn get_schema_name(maybe_ref: Option<&str>) -> Option<String> {
-    let r = maybe_ref?;
+pub(crate) fn get_schema_name<'a>(maybe_ref: impl Into<Option<&'a str>>) -> Option<String> {
+    let r = maybe_ref.into()?;
     let schema_name = r.strip_prefix("#/components/schemas/");
     if schema_name.is_none() {
         tracing::warn!(
