@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[[bin]]
+name = "openapi-codegen"
+path = "src/main.rs"
+
+[[bin]]
+name = "openapi-codegen-v2"
+path = "src/cli_v2/main.rs"
+
 [dependencies]
 aide = "0.14.1"
 anyhow = "1.0.94"
@@ -19,5 +27,10 @@ schemars = "0.8.21"
 serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde_json = "1.0.133"
 tempfile = "3.14.0"
+thiserror = "2.0.17"
+toml = { version = "0.9.8", default-features = false, features = ["serde", "parse"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+
+[dev-dependencies]
+rstest = "0.26.1"
