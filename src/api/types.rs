@@ -295,7 +295,7 @@ impl TypeData {
                                 .as_str()
                                 .context(format!(
                                     "enum varname {} is not a string",
-                                    &enum_varnames[i]
+                                    enum_varnames[i]
                                 ))?
                                 .to_string(),
                             num,

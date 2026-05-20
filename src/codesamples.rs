@@ -118,7 +118,7 @@ fn generate_sample(
                 .request_body_schema_name
                 .as_ref()
                 .map(|req_body_name| recursively_resolve_type(req_body_name, api));
-            let ctx = context! { operation, resource_parents, req_body_ty };
+            let ctx = context! { api, operation, resource_parents, req_body_ty };
 
             let codesample = env.render_str(&source, ctx).unwrap();
             let sample = CodeSample {
