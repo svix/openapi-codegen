@@ -27,6 +27,7 @@ pub fn generate(
     api: &Api,
     tpl_name: String,
     output_dir: &Utf8Path,
+    context: Option<minijinja::Value>,
     no_postprocess: bool,
 ) -> anyhow::Result<Vec<Utf8PathBuf>> {
     let (name_without_jinja_suffix, tpl_path) = match tpl_name.strip_suffix(".jinja") {
@@ -58,6 +59,7 @@ pub fn generate(
             .parent()
             .with_context(|| format!("invalid template path `{tpl_path}`"))?,
     )?;
+    minijinja_env.add_global("context", context);
     minijinja_env.add_template(tpl_path, &tpl_source)?;
     let tpl = minijinja_env.get_template(tpl_path)?;
 
