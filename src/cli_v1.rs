@@ -59,6 +59,10 @@ enum Command {
         #[arg(short, long)]
         output_dir: Option<Utf8PathBuf>,
 
+        /// Optional JSON object available in templates as `context`.
+        #[arg(long)]
+        context: Option<String>,
+
         /// Disable automatic postprocessing of the output (formatting and automatic style fixes).
         #[arg(long)]
         no_postprocess: bool,
@@ -136,12 +140,18 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
         Command::Generate {
             template,
             output_dir,
+            context,
             no_postprocess,
             ..
         } => {
+            let context: Option<minijinja::Value> = context
+                .map(|s| serde_json::from_str(&s).context("invalid 'context' argument"))
+                .transpose()?;
+
             let generated_paths = match &output_dir {
                 Some(path) => {
-                    let generated_paths = generate(&api, template.into(), path, no_postprocess)?;
+                    let generated_paths =
+                        generate(&api, template.into(), path, context, no_postprocess)?;
                     println!("done! output written to {path}");
                     generated_paths
                 }
@@ -167,7 +177,8 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
                         .try_into()
                         .context("non-UTF8 tempdir path")?;
 
-                    let generated_paths = generate(&api, template.into(), path, no_postprocess)?;
+                    let generated_paths =
+                        generate(&api, template.into(), path, context, no_postprocess)?;
                     println!("done! output written to {path}");
 
                     // Persist the TempDir if everything was successful
