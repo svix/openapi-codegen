@@ -304,23 +304,26 @@ impl Operation {
             }
         }
 
-        let request_body_schema_name = op.request_body.and_then(|b| match b {
-            ReferenceOr::Item(mut req_body) => {
-                assert!(req_body.required);
-                assert!(req_body.extensions.is_empty());
-                assert_eq!(req_body.content.len(), 1);
-                let json_body = req_body
-                    .content
-                    .swap_remove("application/json")
-                    .expect("should have JSON body");
-                assert!(json_body.extensions.is_empty());
-                get_body_schema_name(json_body)
-            }
-            ReferenceOr::Reference { .. } => {
-                tracing::error!("$ref request bodies are not currently supported");
-                None
-            }
-        });
+        let request_body_schema_name = match op.request_body {
+            Some(x) => match x {
+                ReferenceOr::Item(mut req_body) => {
+                    assert!(req_body.required);
+                    assert!(req_body.extensions.is_empty());
+                    assert_eq!(req_body.content.len(), 1);
+                    let Some(json_body) = req_body.content.swap_remove("application/json") else {
+                        tracing::error!("request should have JSON body");
+                        return None;
+                    };
+                    assert!(json_body.extensions.is_empty());
+                    get_body_schema_name(json_body)
+                }
+                ReferenceOr::Reference { .. } => {
+                    tracing::error!("$ref request bodies are not currently supported");
+                    return None;
+                }
+            },
+            None => None,
+        };
 
         let response_body_schema_name = op.responses.and_then(|r| {
             assert_eq!(r.default, None);
@@ -418,10 +421,10 @@ fn response_body_schema_name(resp: ReferenceOr<openapi::Response>) -> Option<Str
             }
 
             assert_eq!(resp_body.content.len(), 1);
-            let json_body = resp_body
-                .content
-                .swap_remove("application/json")
-                .expect("should have JSON body");
+            let Some(json_body) = resp_body.content.swap_remove("application/json") else {
+                tracing::error!("response should have JSON body");
+                return None;
+            };
             assert!(json_body.extensions.is_empty());
             get_body_schema_name(json_body)
         }
