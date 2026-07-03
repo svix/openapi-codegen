@@ -28,14 +28,17 @@ struct CliArgs {
     #[arg(global = true, long, value_enum, default_value_t = IncludeMode::Public)]
     include_mode: IncludeMode,
 
-    /// Ignore a specified operation id
+    /// Include webhooks in component models.
+    #[arg(global = true, long)]
+    include_webhooks: bool,
+
+    /// Ignore a specified operation id.
     #[arg(global = true, short, long = "exclude-op-id")]
     excluded_operations: Vec<String>,
 
-    /// Include specified operations
+    /// Include specified operations.
     ///
     /// Use this option, to run the codegen with a limited set of operations.
-    /// Op webhook models will be excluded from the generation
     #[arg(global = true, long = "include-op-id")]
     specified_operations: Vec<String>,
 
@@ -117,7 +120,11 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
                 let spec: OpenApi = serde_json::from_str(&input_file_contents)
                     .context("failed to parse OpenAPI spec")?;
 
-                let webhooks = get_webhooks(&spec);
+                let webhooks = if args.include_webhooks {
+                    get_webhooks(&spec)
+                } else {
+                    vec![]
+                };
                 Api::new(
                     spec.paths.context("found no endpoints in input spec")?,
                     spec.components.unwrap_or_default(),

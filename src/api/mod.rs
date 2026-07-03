@@ -39,12 +39,7 @@ impl Api {
             excluded_operations,
             specified_operations,
         )?;
-        let types = types::from_referenced_components(
-            &resources,
-            components.schemas,
-            webhooks,
-            include_mode,
-        );
+        let types = types::from_referenced_components(&resources, components.schemas, webhooks);
 
         Ok(Self { resources, types })
     }
