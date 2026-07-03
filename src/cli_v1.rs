@@ -120,7 +120,7 @@ pub fn run_cli_v1_main() -> anyhow::Result<()> {
                 let webhooks = get_webhooks(&spec);
                 Api::new(
                     spec.paths.context("found no endpoints in input spec")?,
-                    &mut spec.components.unwrap_or_default(),
+                    spec.components.unwrap_or_default(),
                     &webhooks,
                     args.include_mode,
                     &excluded_operations,

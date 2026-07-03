@@ -27,7 +27,7 @@ pub struct Api {
 impl Api {
     pub fn new(
         paths: openapi::Paths,
-        components: &mut openapi::Components,
+        components: openapi::Components,
         webhooks: &[String],
         include_mode: IncludeMode,
         excluded_operations: &BTreeSet<String>,
@@ -41,7 +41,7 @@ impl Api {
         )?;
         let types = types::from_referenced_components(
             &resources,
-            &mut components.schemas,
+            components.schemas,
             webhooks,
             include_mode,
         );

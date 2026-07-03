@@ -23,7 +23,7 @@ pub type Types = BTreeMap<String, Type>;
 
 pub(crate) fn from_referenced_components(
     res: &Resources,
-    schemas: &mut IndexMap<String, openapi::SchemaObject>,
+    mut schemas: IndexMap<String, openapi::SchemaObject>,
     webhooks: &[String],
     include_mode: IncludeMode,
 ) -> Types {
