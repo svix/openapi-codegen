@@ -9,7 +9,7 @@ use anyhow::{Context as _, bail, ensure};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{JsonValue, cli_v1::IncludeMode, utils::get_properties};
+use crate::{JsonValue, utils::get_properties};
 
 use super::{
     get_schema_name,
@@ -23,17 +23,12 @@ pub type Types = BTreeMap<String, Type>;
 
 pub(crate) fn from_referenced_components(
     res: &Resources,
-    schemas: &mut IndexMap<String, openapi::SchemaObject>,
+    mut schemas: IndexMap<String, openapi::SchemaObject>,
     webhooks: &[String],
-    include_mode: IncludeMode,
 ) -> Types {
-    let mut referenced_components: Vec<&str> = match include_mode {
-        IncludeMode::Public | IncludeMode::PublicAndInternal | IncludeMode::Internal => {
-            webhooks.iter().map(|s| &**s).collect()
-        }
-        IncludeMode::OnlySpecified => vec![],
-    };
-    referenced_components.extend(resources::referenced_components(res));
+    let components: Vec<&str> = resources::referenced_components(res)
+        .chain(webhooks.iter().map(String::as_str))
+        .collect();
 
     let mut types = BTreeMap::new();
     let mut add_type = |schema_name: &str, extra_components: &mut BTreeSet<_>| {
@@ -58,10 +53,7 @@ pub(crate) fn from_referenced_components(
         }
     };
 
-    let mut extra_components: BTreeSet<_> = referenced_components
-        .into_iter()
-        .map(ToOwned::to_owned)
-        .collect();
+    let mut extra_components: BTreeSet<_> = components.into_iter().map(ToOwned::to_owned).collect();
     while let Some(c) = extra_components.pop_first() {
         add_type(&c, &mut extra_components);
     }

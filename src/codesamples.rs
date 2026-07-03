@@ -213,7 +213,7 @@ pub async fn generate_codesamples(
             .paths
             .clone()
             .context("found no endpoints in input spec")?,
-        &mut openapi_spec.components.clone().unwrap_or_default(),
+        openapi_spec.components.clone().unwrap_or_default(),
         &[],
         IncludeMode::Public,
         &excluded_operation_ids,
