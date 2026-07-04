@@ -189,7 +189,8 @@ impl Generator<'_> {
             (None, _) => "summary".to_owned(),
         };
 
-        let (rendered_data, state) = self.tpl.render_and_return_state(ctx)?;
+        let captured = self.tpl.render_captured(ctx)?;
+        let state = captured.state();
 
         let file_path = match state.get_temp("summary_filename") {
             Some(summary_filename) => self.output_dir.join(summary_filename.as_str().unwrap()),
@@ -197,7 +198,7 @@ impl Generator<'_> {
         };
 
         generated_paths.push(file_path.clone());
-        fs::write(&file_path, rendered_data)?;
+        fs::write(&file_path, captured.output())?;
 
         if let Some(extra_generated_file) = state.get_temp("extra_generated_file") {
             let extra_generated_filepath =
