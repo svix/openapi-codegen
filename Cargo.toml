@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[features]
+default = ["preserve_order"]
+preserve_order = ["schemars/preserve_order", "serde_json/preserve_order"]
+
 [dependencies]
 aide = "=0.16.0-alpha.4"
 anyhow = "1.0.94"
