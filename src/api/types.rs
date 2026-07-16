@@ -650,12 +650,12 @@ impl FieldType {
             Self::Uri | Self::String => "String".into(),
             Self::DateTime => "Instant".into(),
             Self::Map { value_ty } => {
-                format!("Map<String,{}>", value_ty.to_kotlin_typename()).into()
+                format!("Map<String, {}>", value_ty.to_kotlin_typename()).into()
             }
-            Self::JsonObject => "Map<String,Any>".into(),
+            Self::JsonObject => "Map<String, Any>".into(),
             Self::List { inner } => format!("List<{}>", inner.to_kotlin_typename()).into(),
             Self::Set { inner } => format!("Set<{}>", inner.to_kotlin_typename()).into(),
-            Self::SchemaRef { name, .. } => filter_schema_ref(name, "Map<String,Any>"),
+            Self::SchemaRef { name, .. } => filter_schema_ref(name, "Map<String, Any>"),
             Self::StringConst { .. } => "String".into(),
             Self::UnixTimestampMs | Self::DurationMs => "ULong".into(),
         }
@@ -676,6 +676,12 @@ impl FieldType {
             Self::String | Self::Uri => "string".into(),
             Self::DateTime => "Date".into(),
             Self::JsonObject => "any".into(),
+            Self::List { inner } if matches!(**inner, Self::Int8) => "Int8Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt8) => "Uint8Array".into(),
+            Self::List { inner } if matches!(**inner, Self::Int16) => "Int16Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt16) => "Uint16Array".into(),
+            Self::List { inner } if matches!(**inner, Self::Int32) => "Int32Array".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt32) => "Uint32Array".into(),
             Self::List { inner } | Self::Set { inner } => {
                 format!("{}[]", inner.to_js_typename()).into()
             }
@@ -683,7 +689,7 @@ impl FieldType {
                 format!("{{ [key: string]: {} }}", value_ty.to_js_typename()).into()
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "any"),
-            Self::StringConst { .. } => "string".into(),
+            Self::StringConst { value } => format!("\"{value}\"").into(),
             Self::UnixTimestampMs | Self::DurationMs => "number".into(),
         }
     }
@@ -696,27 +702,25 @@ impl FieldType {
             Self::UInt8 => "u8".into(),
             Self::Int16 => "i16".into(),
             Self::UInt16 => "u16".into(),
-            Self::Int32 |
-            Self::UInt32 |
-            // FIXME: All integers in query params are currently i32
-            Self::Int64 | Self::UInt64 => "i32".into(),
+            Self::Int32 => "i32".into(),
+            Self::UInt32 => "u32".into(),
+            Self::Int64 => "i64".into(),
+            Self::UInt64 | Self::UnixTimestampMs | Self::DurationMs => "u64".into(),
             // FIXME: Do we want a separate type for Uri?
             Self::Uri | Self::String => "String".into(),
-            // FIXME: Depends on those chrono imports being in scope, not that great..
-            Self::DateTime => "DateTime<Utc>".into(),
+            Self::DateTime => "jiff::Timestamp".into(),
             Self::JsonObject => "serde_json::Value".into(),
-            // FIXME: Treat set differently? (BTreeSet)
-            Self::List { inner } | Self::Set { inner } => {
-                format!("Vec<{}>", inner.to_rust_typename()).into()
+            Self::List { inner } => format!("Vec<{}>", inner.to_rust_typename()).into(),
+            Self::Set { inner } => {
+                format!("std::collections::BTreeSet<{}>", inner.to_rust_typename()).into()
             }
             Self::Map { value_ty } => format!(
-                "std::collections::HashMap<String, {}>",
+                "std::collections::BTreeMap<String, {}>",
                 value_ty.to_rust_typename(),
             )
             .into(),
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "serde_json::Value"),
             Self::StringConst { .. } => "String".into(),
-            Self::UnixTimestampMs | Self::DurationMs => "u64".into(),
         }
     }
 
@@ -752,6 +756,7 @@ impl FieldType {
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "t.Dict[str, t.Any]"),
             Self::Uri => "str".into(),
             Self::JsonObject => "t.Dict[str, t.Any]".into(),
+            Self::List { inner } if matches!(**inner, Self::UInt8) => "bytes".into(),
             Self::Set { inner } | Self::List { inner } => {
                 format!("t.List[{}]", inner.to_python_typename()).into()
             }
@@ -768,10 +773,9 @@ impl FieldType {
             Self::Bool => "Boolean".into(),
             Self::Float64 => "Double".into(),
             Self::Int8 | Self::UInt8 => "Byte".into(),
-            Self::Int16 => "Short".into(),
+            Self::Int16 | Self::UInt16 => "Short".into(),
             Self::Int32 | Self::UInt32 => "Integer".into(),
-            Self::UInt16 // FIXME: change when backwards compat can be broken
-            | Self::UInt64 | Self::Int64 => "Long".into(),
+            Self::UInt64 | Self::Int64 => "Long".into(),
             Self::String => "String".into(),
             Self::DateTime => "OffsetDateTime".into(),
             Self::Uri => "URI".into(),
@@ -781,7 +785,7 @@ impl FieldType {
                 format!("Set<{}>", field_type.to_java_typename()).into()
             }
             Self::Map { value_ty } => {
-                format!("Map<String,{}>", value_ty.to_java_typename()).into()
+                format!("Map<String, {}>", value_ty.to_java_typename()).into()
             }
             Self::SchemaRef { name, .. } => filter_schema_ref(name, "Object"),
             // backwards compat
