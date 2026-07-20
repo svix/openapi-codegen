@@ -163,10 +163,10 @@ RUN <<EOF
 EOF
 
 # Java formatter for code samples
-COPY --from=javafmt-downloader /usr/bin/palantir-java-format.bin /usr/bin/palantir-java-format.bin
+COPY --chown=root:root --chmod=755 --from=javafmt-downloader /usr/bin/palantir-java-format.bin /usr/bin/palantir-java-format.bin
 
 # openapi-codegen
-COPY --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
+COPY --chown=root:root --chmod=755 --from=openapi-codegen-builder /app/target/release/openapi-codegen /usr/bin/
 
 LABEL org.opencontainers.image.authors="support@svix.com" \
       org.opencontainers.image.description="Svix's OpenAPI code generation" \
