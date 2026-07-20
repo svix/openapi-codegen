@@ -1,11 +1,14 @@
 name: CI
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
   pull_request:
+
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
   formatting:
     name: Formatting
@@ -17,6 +20,7 @@ jobs:
           toolchain: stable
           components: rustfmt
       - run: cargo fmt --check
+
   clippy:
     name: Clippy
     runs-on: ubuntu-24.04
@@ -32,6 +36,7 @@ jobs:
           # https://github.com/Swatinem/rust-cache/issues/95
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy -- -D warnings
+
   prek:
     name: Validate prek
     runs-on: ubuntu-24.04

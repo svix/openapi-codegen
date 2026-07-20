@@ -1,11 +1,14 @@
 name: Build and push docker image
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
   pull_request:
+
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
   get-version:
     runs-on: ubuntu-24.04
@@ -17,6 +20,7 @@ jobs:
           fetch-depth: 0
       - id: make_version
         run: echo "version=$(date --utc +%Y%m%d)-$(git rev-list ${{ github.sha }} --count)" >> "$GITHUB_OUTPUT"
+
   build:
     uses: docker/github-builder/.github/workflows/build.yml@v1
     needs: [get-version]
