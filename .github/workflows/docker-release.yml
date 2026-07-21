@@ -1,131 +1,51 @@
 name: Build and push docker image
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
-  REGISTRY_IMAGE: ghcr.io/svix/openapi-codegen
 
 jobs:
-  build:
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        platform:
-          - runner: ubuntu-24.04
-            name: amd64
-            build-args: |
-              DOTNET_PLATFORM=linux-musl-amd64
-              RUST_TARGET=x86_64-unknown-linux-musl
-              BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%402.1.4/biome-linux-x64-musl
-              BIOME_SHA256=6d6bd2213cffab0d68d741c0be466bcd21cd6f5eca1e0e5aac2a991bf9f17cf2
-              RUBYFMT_DL_LINK=https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-x86_64.tar.gz
-              RUBYFMT_SHA256=40f734a83edcc5f03f789606293af9ea622ea2a4fc3091c551b7c1f817087dcd
-              JAVAFMT_DL_LINK=https://repo1.maven.org/maven2/com/palantir/javaformat/palantir-java-format-native/2.75.0/palantir-java-format-native-2.75.0-nativeImage-linux-glibc_x86-64.bin
-              JAVAFMT_SHA256=9d8c9e65cff44bb847d16b4db2ccbd6dacbe32611eaf2587748013eda931cdac
-          - runner: ubuntu-24.04-arm
-            name: arm64
-            build-args: |
-              DOTNET_PLATFORM=linux-musl-arm64
-              RUST_TARGET=aarch64-unknown-linux-musl
-              BIOME_DL_LINK=https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%402.1.4/biome-linux-arm64-musl
-              BIOME_SHA256=ffa05ea6ec0e73072e46301a692eb9413d5b683366e86ab7243414ae944f4ec4
-              RUBYFMT_DL_LINK=https://github.com/fables-tales/rubyfmt/releases/download/v0.11.67-0/rubyfmt-v0.11.67-0-Linux-aarch64.tar.gz
-              RUBYFMT_SHA256=805fec1bf5400513058d8ec2d5cde0b497182b80828957ef0239190aa1f01092
-              JAVAFMT_DL_LINK=https://repo1.maven.org/maven2/com/palantir/javaformat/palantir-java-format-native/2.75.0/palantir-java-format-native-2.75.0-nativeImage-linux-glibc_aarch64.bin
-              JAVAFMT_SHA256=371e226632a5c455f017fe2ce2a614abe8cf81c743b4c27fb998373b790c2a3b
-    name: Build and publish ${{ matrix.platform.name }} docker image
-    if: github.ref == 'refs/heads/main'
-    runs-on: "${{ matrix.platform.runner }}"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Login to ghcr
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          tags: ${{ env.REGISTRY_IMAGE }}
-          build-args: ${{ matrix.platform.build-args }}
-          file: Dockerfile
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/${{ matrix.platform.name }}
-          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-
-      - name: Export digest
-        # we create empty files with the sha256 digest of the docker image as the filename
-        # since we did not push with a tag, the only way to identify the image is with the digest
-        run: |
-          mkdir -p ${{ runner.temp }}/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
-
-      - name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: digests-${{ matrix.platform.name }}
-          path: ${{ runner.temp }}/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  publish-merged-manifest:
-    permissions:
-      contents: read
-      packages: write
-    if: github.ref == 'refs/heads/main'
+  get-version:
     runs-on: ubuntu-24.04
-    needs:
-      - build
+    outputs:
+      version: ${{ steps.make_version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - id: make_version
+        run: echo "version=$(date --utc +%Y%m%d)-$(git rev-list ${{ github.sha }} --count)" >> "$GITHUB_OUTPUT"
 
-      - name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - name: Login to ghcr
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
+  build:
+    uses: docker/github-builder/.github/workflows/build.yml@v1
+    needs: [get-version]
+    permissions:
+      contents: read # to fetch the repository content
+      id-token: write # for signing attestation(s) with GitHub OIDC Token
+      packages: write # to push to ghcr
+    with:
+      context: ./
+      push: ${{ github.event_name != 'pull_request' }}
+      platforms: linux/amd64,linux/arm64
+      cache: true
+      cache-mode: max
+      output: image
+      meta-images: ghcr.io/svix/openapi-codegen
+      meta-flavor: |
+        latest=${{ github.event_name != 'pull_request' }}
+      meta-tags: |
+        type=raw,value=${{needs.get-version.outputs.version}}
+      set-meta-labels: true
+      labels: |
+        org.opencontainers.image.version=${{ needs.get-version.outputs.version }}
+        org.opencontainers.image.revision=${{ github.sha }}
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - run: echo "IMAGE_TAG=$(date --utc +%Y%m%d)-$(git rev-list ${{ github.sha }} --count)" >> "$GITHUB_ENV"
-
-      - name: Create manifest list and push
-        # inside the ${{ runner.temp }}/digests we downloaded empty files with the sha256 digest of the image as the filename
-        # using printf we get the digest from the filename and we add the digest to the manifest
-        # this is the recommend way of doing things :(
-        # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
-        working-directory: ${{ runner.temp }}/digests
-        run: |
-          docker buildx imagetools create \
-            -t ${{ env.REGISTRY_IMAGE }}:latest \
-            -t ${{ env.REGISTRY_IMAGE }}:${{ env.IMAGE_TAG }} \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
-
-      - name: Inspect image
-        run: |
-          docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE }}:latest"
