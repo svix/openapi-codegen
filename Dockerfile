@@ -60,7 +60,7 @@ EOF
 
 
 # build goimports
-FROM docker.io/golang:1.25-alpine AS goimports-builder
+FROM docker.io/golang:1.26-alpine AS goimports-builder
 
 SHELL ["/bin/sh", "-eu", "-c"]
 RUN <<EOF
