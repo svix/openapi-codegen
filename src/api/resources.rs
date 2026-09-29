@@ -165,6 +165,8 @@ pub struct Operation {
     /// Name of the request body type, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) request_body_schema_name: Option<String>,
+    /// Whether or not the request body is required
+    request_body_required: bool,
     /// Name of the response body type, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     response_body_schema_name: Option<String>,
@@ -304,10 +306,9 @@ impl Operation {
             }
         }
 
-        let request_body_schema_name = match op.request_body {
+        let (request_body_schema_name, request_body_required) = match op.request_body {
             Some(x) => match x {
                 ReferenceOr::Item(mut req_body) => {
-                    assert!(req_body.required);
                     assert!(req_body.extensions.is_empty());
                     assert_eq!(req_body.content.len(), 1);
                     let Some(json_body) = req_body.content.swap_remove("application/json") else {
@@ -315,14 +316,14 @@ impl Operation {
                         return None;
                     };
                     assert!(json_body.extensions.is_empty());
-                    get_body_schema_name(json_body)
+                    (get_body_schema_name(json_body), req_body.required)
                 }
                 ReferenceOr::Reference { .. } => {
                     tracing::error!("$ref request bodies are not currently supported");
                     return None;
                 }
             },
-            None => None,
+            None => (None, false),
         };
 
         let response_body_schema_name = op.responses.and_then(|r| {
@@ -369,6 +370,7 @@ impl Operation {
             query_params,
             request_body_schema_name,
             response_body_schema_name,
+            request_body_required,
         };
         Some((res_path, op))
     }
