@@ -407,8 +407,8 @@ fn enforce_string_parameter(parameter_data: &openapi::ParameterData) -> anyhow::
         .json_schema
         .get("type")
         .context("missing path parameter type")?;
-    // The 3.1 spelling of a string type may be an array (`["string", "null"]`
-    // for a nullable parameter); accept any form that includes "string".
+    // The OpenAPI 3.1 spelling of a nullable string is an array
+    // (`["string", "null"]`); accept any form that includes "string".
     let is_string = match ty {
         crate::JsonValue::String(s) => s == "string",
         crate::JsonValue::Array(types) => types.iter().any(|t| t.as_str() == Some("string")),
