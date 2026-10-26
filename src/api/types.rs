@@ -21,6 +21,75 @@ use super::{
 /// Intermediate representation of (some) `components` from the spec.
 pub type Types = BTreeMap<String, Type>;
 
+/// Whether a schema is exactly a `{"type": "null"}` schema.
+fn is_null_schema(schema: &JsonValue) -> bool {
+    schema.get("type").and_then(|t| t.as_str()) == Some("null")
+}
+
+/// Normalise the OpenAPI 3.1 (JSON Schema 2020-12) spellings of nullability
+/// into a shape the rest of this module understands.
+///
+/// Returns the normalised schema plus whether it is nullable. Two correct
+/// 3.1 forms are handled, in addition to the legacy 3.0 `nullable: true`:
+///
+/// - `"type": ["string", "null"]` becomes `"type": "string"`, nullable.
+/// - `"anyOf": [{"$ref": "…"}, {"type": "null"}]` (or the `oneOf` spelling)
+///   unwraps to the non-null variant, nullable. Sibling keys of the wrapper
+///   (e.g. `description`, `default`) are carried over to the unwrapped schema.
+///
+/// Anything that is not a plain null-union is returned unchanged, so
+/// unsupported shapes keep hitting the existing error paths.
+pub(crate) fn normalize_nullable_schema(schema: &JsonValue) -> (Cow<'_, JsonValue>, bool) {
+    let mut nullable = schema
+        .get("nullable")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // `"type": [T, "null"]`
+    if let Some(types) = schema.get("type").and_then(|t| t.as_array()) {
+        let mut non_null = types.iter().filter(|t| t.as_str() != Some("null"));
+        if types.iter().any(|t| t.as_str() == Some("null")) {
+            nullable = true;
+            if let (Some(single), None) = (non_null.next(), non_null.next())
+                && let Some(single) = single.as_str()
+            {
+                let mut obj = schema.as_object().cloned().unwrap_or_default();
+                obj.insert("type".to_owned(), JsonValue::String(single.to_owned()));
+                return (Cow::Owned(JsonValue::Object(obj)), nullable);
+            }
+        }
+        return (Cow::Borrowed(schema), nullable);
+    }
+
+    // `"anyOf" / "oneOf": [inner, {"type": "null"}]`
+    for key in ["anyOf", "oneOf"] {
+        let Some(variants) = schema.get(key).and_then(|v| v.as_array()) else {
+            continue;
+        };
+        if variants.len() == 2 && variants.iter().any(is_null_schema) {
+            let inner = variants.iter().find(|v| !is_null_schema(v)).unwrap();
+            nullable = true;
+            // The inner schema may itself use a 3.1 nullable form.
+            let (inner, inner_nullable) = normalize_nullable_schema(inner);
+            nullable |= inner_nullable;
+            let JsonValue::Object(mut obj) = inner.into_owned() else {
+                return (Cow::Borrowed(schema), nullable);
+            };
+            // Carry over siblings of the wrapper that the inner schema lacks.
+            if let Some(outer) = schema.as_object() {
+                for (k, v) in outer {
+                    if k != key && k != "nullable" && !obj.contains_key(k) {
+                        obj.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+            return (Cow::Owned(JsonValue::Object(obj)), nullable);
+        }
+    }
+
+    (Cow::Borrowed(schema), nullable)
+}
+
 pub(crate) fn from_referenced_components(
     res: &Resources,
     mut schemas: IndexMap<String, openapi::SchemaObject>,
@@ -75,6 +144,13 @@ impl Type {
     pub(crate) fn from_schema(name: String, schema: &JsonValue) -> anyhow::Result<Self> {
         ensure!(schema.is_object(), "schema must be an object");
 
+        // A component type itself has no nullable slot (nullability lives on
+        // the referencing field), so the flag is discarded here; normalising
+        // still matters so that `type: [T, "null"]` and null-union wrappers
+        // are understood at all.
+        let (schema_cow, _) = normalize_nullable_schema(schema);
+        let schema = schema_cow.as_ref();
+
         let instance_type = match schema.get("type") {
             Some(JsonValue::String(ty)) => Some(ty.as_str()),
             Some(ty) => bail!("invalid / unsupported type `{ty:?}`"),
@@ -87,19 +163,27 @@ impl Type {
                     .filter_map(|v| v.as_array())
                     .flatten()
                 {
-                    if let Some(ty) = &variant.get("type") {
-                        match ty {
-                            JsonValue::String(ty) => {
-                                if let Some(res_ty) = result {
-                                    ensure!(
-                                        res_ty == ty,
-                                        "unsupported: oneOf schemas with different types"
-                                    );
-                                } else {
-                                    result = Some(ty.as_str());
-                                }
-                            }
-                            _ => bail!("invalid / unsupported type `{ty:?}` in oneOf"),
+                    // A variant may itself spell its type the 3.1 way,
+                    // `"type": ["string", "null"]`; read through that.
+                    let variant_ty: Option<&str> = match variant.get("type") {
+                        Some(JsonValue::String(ty)) => Some(ty.as_str()),
+                        Some(JsonValue::Array(types)) => types
+                            .iter()
+                            .filter_map(|t| t.as_str())
+                            .find(|t| *t != "null"),
+                        Some(ty) => {
+                            bail!("invalid / unsupported type `{ty:?}` in oneOf")
+                        }
+                        None => None,
+                    };
+                    if let Some(ty) = variant_ty {
+                        if let Some(res_ty) = result {
+                            ensure!(
+                                res_ty == ty,
+                                "unsupported: oneOf schemas with different types"
+                            );
+                        } else {
+                            result = Some(ty);
                         }
                     }
                 }
@@ -358,14 +442,11 @@ impl Field {
         positional: bool,
     ) -> anyhow::Result<Self> {
         let example = schema.get("example").cloned();
-        let nullable = schema
-            .get("nullable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let (normalized, nullable) = normalize_nullable_schema(schema);
 
         Ok(Self {
             name,
-            r#type: FieldType::from_schema(schema)?,
+            r#type: FieldType::from_schema(&normalized)?,
             default: schema.get("default").cloned(),
             description: schema["description"].as_str().map(ToOwned::to_owned),
             required,
@@ -460,6 +541,15 @@ impl FieldType {
 
     fn from_schema(schema: &JsonValue) -> anyhow::Result<Self> {
         ensure!(schema.is_object(), "schema must be an object");
+
+        // Unwrap the 3.1 nullable forms (`"type": [T, "null"]`,
+        // `anyOf`/`oneOf` with a `{"type": "null"}` variant) up front; the
+        // nullability flag itself is tracked by the caller (`Field`), this
+        // function only needs the underlying type. Recursion below passes
+        // sub-schemas through this function again, so nested nullable forms
+        // (array items, map values, …) are handled too.
+        let (schema_cow, _) = normalize_nullable_schema(schema);
+        let schema = schema_cow.as_ref();
 
         let result = match schema.get("type") {
             Some(JsonValue::String(ty)) => {
