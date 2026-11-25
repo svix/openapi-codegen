@@ -1,6 +1,6 @@
 # build openapi-codegen
-FROM docker.io/rust:1.97.1-slim-trixie AS chef
-RUN cargo install --locked cargo-chef@0.1.77
+FROM docker.io/rust:1.100.0-slim-trixie AS chef
+RUN cargo install --locked cargo-chef@0.1.78
 WORKDIR /app
 WORKDIR /app
 
@@ -60,7 +60,7 @@ EOF
 
 
 # build goimports
-FROM docker.io/golang:1.26-alpine AS goimports-builder
+FROM docker.io/golang:1.27-alpine AS goimports-builder
 
 SHELL ["/bin/sh", "-eu", "-c"]
 RUN <<EOF
