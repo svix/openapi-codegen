@@ -632,10 +632,6 @@ impl FieldType {
                             "unsupported: minProperties on field type"
                         );
                         ensure!(
-                            schema.get("properties").is_none(),
-                            "unsupported: properties on field type"
-                        );
-                        ensure!(
                             schema.get("patternProperties").is_none(),
                             "unsupported: patternProperties on field type"
                         );
